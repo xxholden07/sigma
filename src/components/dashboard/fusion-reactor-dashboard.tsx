@@ -42,8 +42,6 @@ export function FusionReactorDashboard() {
   });
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
-  const particlesRef = useRef<Particle[]>(createInitialParticles());
-  const flashesRef = useRef<FusionFlash[]>([]);
   const simulationStateRef = useRef({
     particles: createInitialParticles(),
     flashes: [] as FusionFlash[],
