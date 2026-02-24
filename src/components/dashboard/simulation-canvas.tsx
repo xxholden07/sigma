@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useLayoutEffect } from "react";
 import type { Particle, FusionFlash } from "@/lib/simulation-types";
 import {
   PARTICLE_RADIUS,
@@ -21,7 +21,7 @@ export function SimulationCanvas({ particles, flashes }: SimulationCanvasProps) 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext("2d");
