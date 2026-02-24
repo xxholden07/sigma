@@ -10,15 +10,14 @@ import {
   ENERGY_THRESHOLD,
   DT_FUSION_ENERGY_MEV,
   PARTICLE_RADIUS,
+  SIMULATION_WIDTH,
+  SIMULATION_HEIGHT,
 } from "@/lib/simulation-constants";
 import { SimulationCanvas } from "./simulation-canvas";
 import { ControlPanel } from "./control-panel";
 import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { FusionIcon } from "../icons/fusion-icon";
-
-const SIM_WIDTH = 800;
-const SIM_HEIGHT = 600;
 
 function createInitialParticles(): Particle[] {
   return Array.from({ length: INITIAL_PARTICLE_COUNT }, (_, i) => ({
@@ -103,8 +102,8 @@ export function FusionReactorDashboard() {
 
       // Update particle positions
       for (const p of currentParticles) {
-        const dx = (SIM_WIDTH / 2) - p.x;
-        const dy = (SIM_HEIGHT / 2) - p.y;
+        const dx = (SIMULATION_WIDTH / 2) - p.x;
+        const dy = (SIMULATION_HEIGHT / 2) - p.y;
         const distance = Math.hypot(dx, dy);
         
         if (distance > 1) {
@@ -115,8 +114,8 @@ export function FusionReactorDashboard() {
         p.x += p.vx;
         p.y += p.vy;
 
-        if (p.x <= PARTICLE_RADIUS || p.x >= SIM_WIDTH - PARTICLE_RADIUS) p.vx *= -1;
-        if (p.y <= PARTICLE_RADIUS || p.y >= SIM_HEIGHT - PARTICLE_RADIUS) p.vy *= -1;
+        if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) p.vx *= -1;
+        if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) p.vy *= -1;
       }
       
       const newParticles: Particle[] = [];
@@ -147,7 +146,7 @@ export function FusionReactorDashboard() {
                     currentFlashes.push({ id: nextFlashId.current++, x: p1.x, y: p1.y, radius: 0, opacity: 1 });
 
                     const newP1: Particle = { id: nextParticleId.current++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 };
-                    const newP2: Particle = { id: nextParticleId.current++, x: SIM_WIDTH - 10, y: SIM_HEIGHT - 10, type: 'T', vx: -1, vy: -1 };
+                    const newP2: Particle = { id: nextParticleId.current++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'T', vx: -1, vy: -1 };
                     newParticles.push(newP1, newP2);
                     break;
                 }
@@ -170,22 +169,24 @@ export function FusionReactorDashboard() {
       // Update Telemetry
       const currentTime = performance.now();
       const simulationDuration = (currentTime - simulationTimeStartRef.current) / 1000;
-      let fusionRate = telemetry.fusionRate;
-
-      if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
-        fusionRate = fusionsInLastSecond.current;
-        fusionsInLastSecond.current = 0;
-        lastFusionRateUpdateTime.current = currentTime;
-      }
       
-      setTelemetry(t => ({
+      setTelemetry(t => {
+        let newFusionRate = t.fusionRate;
+        if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
+          newFusionRate = fusionsInLastSecond.current;
+          fusionsInLastSecond.current = 0;
+          lastFusionRateUpdateTime.current = currentTime;
+        }
+
+        return {
           ...t,
           totalEnergyGenerated: t.totalEnergyGenerated + newEnergy,
           particleCount: particlesRef.current.length,
           simulationDuration: simulationDuration,
-          fusionRate: fusionRate,
-          relativeTemperature: settings.temperature
-      }));
+          fusionRate: newFusionRate,
+          relativeTemperature: settings.temperature,
+        };
+      });
 
       setRenderState({ particles: [...particlesRef.current], flashes: [...flashesRef.current] });
       animationFrameId = requestAnimationFrame(gameLoop);
@@ -196,7 +197,7 @@ export function FusionReactorDashboard() {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [settings.confinement, telemetry.fusionRate]);
+  }, [settings.confinement, settings.temperature]);
 
   const telemetryForAI = {
       relativeTemperature: settings.temperature,
