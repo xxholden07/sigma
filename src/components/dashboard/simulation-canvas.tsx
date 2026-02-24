@@ -13,37 +13,30 @@ import {
 } from "@/lib/simulation-constants";
 
 interface SimulationCanvasProps {
-  particles: Particle[];
-  flashes: FusionFlash[];
+  particlesRef: React.RefObject<Particle[]>;
+  flashesRef: React.RefObject<FusionFlash[]>;
 }
 
-export function SimulationCanvas({ particles, flashes }: SimulationCanvasProps) {
+export function SimulationCanvas({ particlesRef, flashesRef }: SimulationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const animationFrameIdRef = useRef<number>();
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext("2d");
     if (!context) return;
-    
-    const resizeCanvas = () => {
-        const container = containerRef.current;
-        if(container) {
-            const { width, height } = container.getBoundingClientRect();
-            canvas.width = width;
-            canvas.height = height;
-        }
-    };
-    
-    const resizeObserver = new ResizeObserver(resizeCanvas);
-    if (containerRef.current) {
-        resizeObserver.observe(containerRef.current);
-    }
-    resizeCanvas();
 
     const render = () => {
-      if (!context || !canvas) return;
+      animationFrameIdRef.current = requestAnimationFrame(render);
+      
+      const particles = particlesRef.current;
+      const flashes = flashesRef.current;
+
+      if (!particles || !flashes) {
+        return;
+      }
 
       const { width, height } = canvas;
       const scaleX = width / SIMULATION_WIDTH;
@@ -52,7 +45,7 @@ export function SimulationCanvas({ particles, flashes }: SimulationCanvasProps) 
       // Clear canvas
       context.fillStyle = "hsl(var(--background))";
       context.fillRect(0, 0, width, height);
-      
+
       // Draw confinement zone
       context.strokeStyle = CONFINEMENT_ZONE_COLOR;
       context.lineWidth = 2;
@@ -67,7 +60,7 @@ export function SimulationCanvas({ particles, flashes }: SimulationCanvasProps) 
         context.arc(p.x * scaleX, p.y * scaleY, PARTICLE_RADIUS, 0, 2 * Math.PI);
         context.fill();
       });
-      
+
       // Draw flashes
       flashes.forEach((f) => {
         context.fillStyle = `rgba(255, 255, 255, ${f.opacity})`;
@@ -78,17 +71,35 @@ export function SimulationCanvas({ particles, flashes }: SimulationCanvasProps) 
     };
 
     render();
-    
-    return () => {
-        if(containerRef.current) {
-            resizeObserver.unobserve(containerRef.current);
-        }
+
+    const resizeCanvas = () => {
+      const container = containerRef.current;
+      if (container) {
+        const { width, height } = container.getBoundingClientRect();
+        canvas.width = width;
+        canvas.height = height;
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(resizeCanvas);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
     }
-  }, [particles, flashes]);
+    resizeCanvas();
+
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+      if (containerRef.current) {
+        resizeObserver.unobserve(containerRef.current);
+      }
+    };
+  }, [particlesRef, flashesRef]);
 
   return (
     <div ref={containerRef} className="absolute inset-0 h-full w-full">
-        <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} />
     </div>
   );
 }

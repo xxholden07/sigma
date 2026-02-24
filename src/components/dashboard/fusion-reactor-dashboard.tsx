@@ -49,8 +49,6 @@ export function FusionReactorDashboard() {
   const fusionsInLastSecond = useRef(0);
   const lastFusionRateUpdateTime = useRef(performance.now());
 
-  const [renderState, setRenderState] = useState({ particles: particlesRef.current, flashes: flashesRef.current });
-
   const resetSimulation = useCallback(() => {
     particlesRef.current = createInitialParticles();
     flashesRef.current = [];
@@ -188,7 +186,6 @@ export function FusionReactorDashboard() {
         };
       });
 
-      setRenderState({ particles: [...particlesRef.current], flashes: [...flashesRef.current] });
       animationFrameId = requestAnimationFrame(gameLoop);
     };
 
@@ -233,8 +230,8 @@ export function FusionReactorDashboard() {
             <div className="relative h-full w-full p-4">
               <div className="relative mx-auto aspect-video max-h-full w-full max-w-[800px] overflow-hidden rounded-lg border shadow-lg">
                 <SimulationCanvas 
-                    particles={renderState.particles} 
-                    flashes={renderState.flashes} 
+                    particlesRef={particlesRef} 
+                    flashesRef={flashesRef} 
                 />
               </div>
             </div>
