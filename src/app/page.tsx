@@ -1,8 +1,10 @@
 import { FusionReactorDashboard } from '@/components/dashboard/fusion-reactor-dashboard';
 
-export const dynamic = 'force-dynamic';
-
-export default function Home() {
+export default function Home({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   return (
     <main>
       <FusionReactorDashboard />
