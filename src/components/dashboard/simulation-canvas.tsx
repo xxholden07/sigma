@@ -13,11 +13,11 @@ import {
 } from "@/lib/simulation-constants";
 
 interface SimulationCanvasProps {
-  particlesRef: React.RefObject<Particle[]>;
-  flashesRef: React.RefObject<FusionFlash[]>;
+  getParticles: () => Particle[];
+  getFlashes: () => FusionFlash[];
 }
 
-export function SimulationCanvas({ particlesRef, flashesRef }: SimulationCanvasProps) {
+export function SimulationCanvas({ getParticles, getFlashes }: SimulationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameIdRef = useRef<number>();
@@ -31,8 +31,8 @@ export function SimulationCanvas({ particlesRef, flashesRef }: SimulationCanvasP
     const render = () => {
       animationFrameIdRef.current = requestAnimationFrame(render);
       
-      const particles = particlesRef.current;
-      const flashes = flashesRef.current;
+      const particles = getParticles();
+      const flashes = getFlashes();
 
       if (!particles || !flashes) {
         return;
@@ -95,7 +95,7 @@ export function SimulationCanvas({ particlesRef, flashesRef }: SimulationCanvasP
         resizeObserver.unobserve(containerRef.current);
       }
     };
-  }, [particlesRef, flashesRef]);
+  }, [getParticles, getFlashes]);
 
   return (
     <div ref={containerRef} className="absolute inset-0 h-full w-full">
