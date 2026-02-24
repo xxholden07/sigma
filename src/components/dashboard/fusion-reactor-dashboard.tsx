@@ -44,23 +44,25 @@ export function FusionReactorDashboard() {
 
   const particlesRef = useRef<Particle[]>(createInitialParticles());
   const flashesRef = useRef<FusionFlash[]>([]);
-  const telemetryRef = useRef({
-    totalEnergyGenerated: 0,
-    particleCount: INITIAL_PARTICLE_COUNT,
-    fusionRate: 0,
+  const simulationStateRef = useRef({
+    particles: createInitialParticles(),
+    flashes: [] as FusionFlash[],
+    nextParticleId: INITIAL_PARTICLE_COUNT,
+    nextFlashId: 0,
+    fusionsInLastSecond: 0,
   });
-
-  const nextParticleId = useRef(INITIAL_PARTICLE_COUNT);
-  const nextFlashId = useRef(0);
   
   const simulationTimeStartRef = useRef(performance.now());
-  const fusionsInLastSecond = useRef(0);
   const lastFusionRateUpdateTime = useRef(performance.now());
 
   const resetSimulation = useCallback(() => {
-    particlesRef.current = createInitialParticles();
-    flashesRef.current = [];
-    nextParticleId.current = INITIAL_PARTICLE_COUNT;
+    simulationStateRef.current = {
+        particles: createInitialParticles(),
+        flashes: [],
+        nextParticleId: INITIAL_PARTICLE_COUNT,
+        nextFlashId: 0,
+        fusionsInLastSecond: 0,
+    };
     setSettings({ temperature: INITIAL_TEMPERATURE, confinement: INITIAL_CONFINEMENT });
     setTelemetryHistory([]);
 
@@ -73,15 +75,9 @@ export function FusionReactorDashboard() {
       fusionEfficiency: 0,
     };
     setTelemetry(initialTelemetry);
-    telemetryRef.current = {
-      totalEnergyGenerated: 0,
-      particleCount: INITIAL_PARTICLE_COUNT,
-      fusionRate: 0,
-    };
     
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
-    fusionsInLastSecond.current = 0;
   }, []);
 
   const handleTemperatureChange = useCallback((newTemp: number) => {
@@ -90,14 +86,14 @@ export function FusionReactorDashboard() {
 
     if (newTemp > oldTemp) {
         const diff = newTemp - oldTemp;
-        particlesRef.current.forEach(p => {
+        simulationStateRef.current.particles.forEach(p => {
             p.vx += (Math.random() - 0.5) * 0.5 * diff;
             p.vy += (Math.random() - 0.5) * 0.5 * diff;
         });
     } else if (newTemp < oldTemp) {
         const diff = oldTemp - newTemp;
         const factor = Math.pow(0.98, diff);
-        particlesRef.current.forEach(p => {
+        simulationStateRef.current.particles.forEach(p => {
             p.vx *= factor;
             p.vy *= factor;
         });
@@ -110,10 +106,10 @@ export function FusionReactorDashboard() {
 
   useEffect(() => {
     let animationFrameId: number;
+    let totalEnergyGenerated = 0;
     
     const gameLoop = () => {
-      const currentParticles = particlesRef.current;
-      const currentFlashes = flashesRef.current;
+      const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
       const confinement = settings.confinement;
 
       // Update particle positions
@@ -157,12 +153,12 @@ export function FusionReactorDashboard() {
                     fusedIndices.add(i);
                     fusedIndices.add(j);
                     newEnergy += DT_FUSION_ENERGY_MEV;
-                    fusionsInLastSecond.current++;
+                    simulationStateRef.current.fusionsInLastSecond++;
 
-                    currentFlashes.push({ id: nextFlashId.current++, x: p1.x, y: p1.y, radius: 0, opacity: 1 });
+                    currentFlashes.push({ id: simulationStateRef.current.nextFlashId++, x: p1.x, y: p1.y, radius: 0, opacity: 1 });
 
-                    const newP1: Particle = { id: nextParticleId.current++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 };
-                    const newP2: Particle = { id: nextParticleId.current++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'T', vx: -1, vy: -1 };
+                    const newP1: Particle = { id: simulationStateRef.current.nextParticleId++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 };
+                    const newP2: Particle = { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'T', vx: -1, vy: -1 };
                     newParticles.push(newP1, newP2);
                     break;
                 }
@@ -173,23 +169,37 @@ export function FusionReactorDashboard() {
         }
       }
       
-      particlesRef.current = newParticles;
-      flashesRef.current = currentFlashes.filter(f => {
+      simulationStateRef.current.particles = newParticles;
+      simulationStateRef.current.flashes = currentFlashes.filter(f => {
         f.radius += 2;
         f.opacity -= 0.025;
         return f.opacity > 0;
       });
       
-      telemetryRef.current.totalEnergyGenerated += newEnergy;
-      telemetryRef.current.particleCount = particlesRef.current.length;
+      totalEnergyGenerated += newEnergy;
       
       const currentTime = performance.now();
-      if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
-        telemetryRef.current.fusionRate = fusionsInLastSecond.current;
-        fusionsInLastSecond.current = 0;
-        lastFusionRateUpdateTime.current = currentTime;
-      }
+      
+      setTelemetry(prev => {
+        let newFusionRate = prev.fusionRate;
+        if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
+            newFusionRate = simulationStateRef.current.fusionsInLastSecond;
+            simulationStateRef.current.fusionsInLastSecond = 0;
+            lastFusionRateUpdateTime.current = currentTime;
+        }
 
+        const simulationDuration = (performance.now() - simulationTimeStartRef.current) / 1000;
+        const currentTelemetry = {
+            totalEnergyGenerated: totalEnergyGenerated,
+            particleCount: simulationStateRef.current.particles.length,
+            fusionRate: newFusionRate,
+            simulationDuration: simulationDuration,
+            relativeTemperature: settings.temperature,
+            fusionEfficiency: Math.min((newFusionRate / 15.0) * 100, 100),
+        };
+        return currentTelemetry;
+      });
+      
       animationFrameId = requestAnimationFrame(gameLoop);
     };
 
@@ -202,36 +212,26 @@ export function FusionReactorDashboard() {
   
   useEffect(() => {
     const intervalId = setInterval(() => {
-      const simulationDuration = (performance.now() - simulationTimeStartRef.current) / 1000;
-      
-      const currentTelemetry = {
-        totalEnergyGenerated: telemetryRef.current.totalEnergyGenerated,
-        particleCount: telemetryRef.current.particleCount,
-        fusionRate: telemetryRef.current.fusionRate,
-        simulationDuration: simulationDuration,
-        relativeTemperature: settings.temperature,
-        fusionEfficiency: Math.min((telemetryRef.current.fusionRate / 15.0) * 100, 100),
-      };
+        setTelemetry(currentTelemetry => {
+            const snapshot = {
+                simulationDurationSeconds: parseFloat(currentTelemetry.simulationDuration.toFixed(1)),
+                relativeTemperature: settings.temperature,
+                confinement: settings.confinement,
+                fusionRate: currentTelemetry.fusionRate,
+                totalEnergyGenerated: parseFloat(currentTelemetry.totalEnergyGenerated.toFixed(1)),
+                numParticles: currentTelemetry.particleCount,
+            };
 
-      setTelemetry(currentTelemetry);
-
-      const snapshot = {
-        simulationDurationSeconds: parseFloat(simulationDuration.toFixed(1)),
-        relativeTemperature: settings.temperature,
-        confinement: settings.confinement,
-        fusionRate: telemetryRef.current.fusionRate,
-        totalEnergyGenerated: parseFloat(telemetryRef.current.totalEnergyGenerated.toFixed(1)),
-        numParticles: telemetryRef.current.particleCount,
-      };
-
-      setTelemetryHistory(prevHistory => {
-        const newHistory = [...prevHistory, snapshot];
-        if (newHistory.length > 20) {
-          return newHistory.slice(newHistory.length - 20);
-        }
-        return newHistory;
-      });
-    }, 100);
+            setTelemetryHistory(prevHistory => {
+                const newHistory = [...prevHistory, snapshot];
+                if (newHistory.length > 20) {
+                return newHistory.slice(newHistory.length - 20);
+                }
+                return newHistory;
+            });
+            return currentTelemetry;
+        });
+    }, 500);
 
     return () => clearInterval(intervalId);
   }, [settings.temperature, settings.confinement]);
@@ -256,15 +256,20 @@ export function FusionReactorDashboard() {
                 onReset={resetSimulation}
               />
               <TelemetryPanel telemetry={telemetry} />
-              <AIAssistant telemetryHistory={telemetryHistory} />
+              <AIAssistant
+                telemetryHistory={telemetryHistory}
+                settings={settings}
+                onTemperatureChange={handleTemperatureChange}
+                onConfinementChange={handleConfinementChange}
+              />
             </SidebarContent>
           </Sidebar>
           <SidebarInset>
             <div className="relative h-full w-full p-4">
               <div className="relative mx-auto aspect-video max-h-full w-full max-w-[800px] overflow-hidden rounded-lg border shadow-lg">
                 <SimulationCanvas 
-                    particlesRef={particlesRef} 
-                    flashesRef={flashesRef} 
+                    getParticles={() => simulationStateRef.current.particles}
+                    getFlashes={() => simulationStateRef.current.flashes}
                 />
               </div>
             </div>
