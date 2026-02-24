@@ -1,7 +1,8 @@
 "use client";
 
-import { BarChart, Atom, Zap, Gauge } from "lucide-react";
+import { BarChart, Atom, Zap, Gauge, Target } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 interface TelemetryPanelProps {
   telemetry: {
@@ -9,6 +10,7 @@ interface TelemetryPanelProps {
     particleCount: number;
     fusionRate: number;
     relativeTemperature: number;
+    fusionEfficiency: number;
   };
 }
 
@@ -59,6 +61,20 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
             value={telemetry.fusionRate}
             unit="f/s"
         />
+        <div className="space-y-2 pt-2">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="text-muted-foreground">
+                        <Target className="h-4 w-4 text-green-500" />
+                    </div>
+                    <span className="text-sm text-muted-foreground">Fusion Efficiency</span>
+                </div>
+                <div className="font-semibold text-right">
+                    {telemetry.fusionEfficiency.toFixed(0)}%
+                </div>
+            </div>
+            <Progress value={telemetry.fusionEfficiency} className="h-2" />
+        </div>
       </CardContent>
     </Card>
   );

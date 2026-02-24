@@ -10,19 +10,33 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-const PlasmaOptimizationSuggestionInputSchema = z.object({
+const TelemetrySnapshotSchema = z.object({
+  simulationDurationSeconds: z
+    .number()
+    .describe(
+      'The duration of the simulation in seconds at the time of this snapshot.'
+    ),
   relativeTemperature: z
     .number()
-    .describe('The current relative temperature of the plasma (arbitrary unit).'),
+    .describe('The relative temperature of the plasma (arbitrary unit).'),
+  confinement: z.number().describe('The confinement strength setting.'),
+  fusionRate: z
+    .number()
+    .describe('The number of fusion events per second (f/s).'),
   totalEnergyGenerated: z
     .number()
     .describe('The total energy generated so far in MeV.'),
   numParticles: z
     .number()
     .describe('The current number of particles in the simulation.'),
-  simulationDurationSeconds: z
-    .number()
-    .describe('The duration of the simulation in seconds since it started or last reset. Used to infer fusion rate.'),
+});
+
+const PlasmaOptimizationSuggestionInputSchema = z.object({
+  history: z
+    .array(TelemetrySnapshotSchema)
+    .describe(
+      'A recent history of telemetry and settings snapshots, ordered from oldest to newest.'
+    ),
 });
 export type PlasmaOptimizationSuggestionInput = z.infer<
   typeof PlasmaOptimizationSuggestionInputSchema
@@ -43,7 +57,9 @@ const PlasmaOptimizationSuggestionOutputSchema = z.object({
     .describe('Reasoning for the recommended confinement strength adjustment.'),
   overallInsight: z
     .string()
-    .describe('Overall insight or detailed recommendation to improve fusion rate and energy output.'),
+    .describe(
+      'Overall insight or detailed recommendation to improve fusion rate and energy output.'
+    ),
 });
 export type PlasmaOptimizationSuggestionOutput = z.infer<
   typeof PlasmaOptimizationSuggestionOutputSchema
@@ -59,7 +75,21 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `You are an expert fusion reactor operator and plasma physicist. Your goal is to analyze the current simulation state of a D-T fusion reactor and provide actionable advice to increase the fusion rate and energy output.\n\nHere are the current simulation metrics:\n- Relative Temperature: {{{relativeTemperature}}} (arbitrary unit)\n- Total Energy Generated: {{{totalEnergyGenerated}}} MeV\n- Number of Particles: {{{numParticles}}}\n- Simulation Duration: {{{simulationDurationSeconds}}} seconds\n\nBased on these metrics, provide a recommendation for the relative temperature and confinement strength. For confinement strength, assume it's a parameter that can be adjusted to either increase or decrease the force pulling particles towards the center.\n\nConsider the following:\n- Higher temperatures generally lead to higher collision energy, increasing the likelihood of overcoming the Coulomb barrier, but too high might lead to particles escaping confinement more easily.\n- Stronger confinement keeps particles denser, increasing collision frequency, but excessive confinement might lead to instabilities or simply prevent necessary particle movement for optimal interaction.\n- A healthy fusion rate implies a good balance between temperature and confinement.\n- If total energy is low relative to simulation duration, fusion rate is low.\n\nProvide your recommendation in the specified JSON format. Each recommendation should include a clear 'increase', 'decrease', or 'maintain' directive, along with a concise reason. Also, provide an overall insight or a more detailed recommendation.`,
+  prompt: `You are an expert fusion reactor operator and plasma physicist. Your goal is to analyze the recent history of a D-T fusion reactor simulation and provide actionable advice to increase the fusion rate and energy output. By learning from the trend of changes, you can give more insightful recommendations.
+
+Here is the recent history of simulation metrics, from oldest to newest:
+{{#each history}}
+- Snapshot at: {{{simulationDurationSeconds}}}s | Temp: {{{relativeTemperature}}} | Confinement: {{{confinement}}} | Fusion Rate: {{{fusionRate}}} f/s | Particle Count: {{{numParticles}}} | Total Energy: {{{totalEnergyGenerated}}} MeV
+{{/each}}
+
+Based on this history, analyze the trends. For example, if an increase in temperature led to a higher fusion rate, recommend further increases. If it led to instability (e.g., lower particle count without much fusion increase), recommend a decrease or stronger confinement. Provide a recommendation for the relative temperature and confinement strength.
+
+Consider the following:
+- Higher temperatures generally lead to higher collision energy, increasing the likelihood of overcoming the Coulomb barrier, but too high might lead to particles escaping confinement more easily.
+- Stronger confinement keeps particles denser, increasing collision frequency, but excessive confinement might lead to instabilities or simply prevent necessary particle movement for optimal interaction.
+- A healthy fusion rate implies a good balance between temperature and confinement.
+
+Provide your recommendation in the specified JSON format. Each recommendation should include a clear 'increase', 'decrease', or 'maintain' directive, along with a concise reason based on the observed trends. Also, provide an overall insight or a more detailed recommendation.`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(

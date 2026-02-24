@@ -38,7 +38,9 @@ export function FusionReactorDashboard() {
     simulationDuration: 0,
     fusionRate: 0,
     relativeTemperature: INITIAL_TEMPERATURE,
+    fusionEfficiency: 0,
   });
+  const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
   const particlesRef = useRef<Particle[]>(createInitialParticles());
   const flashesRef = useRef<FusionFlash[]>([]);
@@ -60,6 +62,7 @@ export function FusionReactorDashboard() {
     flashesRef.current = [];
     nextParticleId.current = INITIAL_PARTICLE_COUNT;
     setSettings({ temperature: INITIAL_TEMPERATURE, confinement: INITIAL_CONFINEMENT });
+    setTelemetryHistory([]);
 
     const initialTelemetry = {
       totalEnergyGenerated: 0,
@@ -67,6 +70,7 @@ export function FusionReactorDashboard() {
       simulationDuration: 0,
       fusionRate: 0,
       relativeTemperature: INITIAL_TEMPERATURE,
+      fusionEfficiency: 0,
     };
     setTelemetry(initialTelemetry);
     telemetryRef.current = {
@@ -199,25 +203,38 @@ export function FusionReactorDashboard() {
   useEffect(() => {
     const intervalId = setInterval(() => {
       const simulationDuration = (performance.now() - simulationTimeStartRef.current) / 1000;
-      setTelemetry({
+      
+      const currentTelemetry = {
         totalEnergyGenerated: telemetryRef.current.totalEnergyGenerated,
         particleCount: telemetryRef.current.particleCount,
         fusionRate: telemetryRef.current.fusionRate,
         simulationDuration: simulationDuration,
         relativeTemperature: settings.temperature,
+        fusionEfficiency: Math.min((telemetryRef.current.fusionRate / 15.0) * 100, 100),
+      };
+
+      setTelemetry(currentTelemetry);
+
+      const snapshot = {
+        simulationDurationSeconds: parseFloat(simulationDuration.toFixed(1)),
+        relativeTemperature: settings.temperature,
+        confinement: settings.confinement,
+        fusionRate: telemetryRef.current.fusionRate,
+        totalEnergyGenerated: parseFloat(telemetryRef.current.totalEnergyGenerated.toFixed(1)),
+        numParticles: telemetryRef.current.particleCount,
+      };
+
+      setTelemetryHistory(prevHistory => {
+        const newHistory = [...prevHistory, snapshot];
+        if (newHistory.length > 20) {
+          return newHistory.slice(newHistory.length - 20);
+        }
+        return newHistory;
       });
     }, 100);
 
     return () => clearInterval(intervalId);
-  }, [settings.temperature]);
-
-
-  const telemetryForAI = {
-      relativeTemperature: settings.temperature,
-      totalEnergyGenerated: telemetry.totalEnergyGenerated,
-      particleCount: telemetry.particleCount,
-      simulationDuration: telemetry.simulationDuration,
-  };
+  }, [settings.temperature, settings.confinement]);
 
   return (
     <SidebarProvider defaultOpen>
@@ -239,7 +256,7 @@ export function FusionReactorDashboard() {
                 onReset={resetSimulation}
               />
               <TelemetryPanel telemetry={telemetry} />
-              <AIAssistant telemetry={telemetryForAI} />
+              <AIAssistant telemetryHistory={telemetryHistory} />
             </SidebarContent>
           </Sidebar>
           <SidebarInset>

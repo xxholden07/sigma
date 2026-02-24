@@ -9,13 +9,17 @@ import { useToast } from "@/hooks/use-toast";
 import { getAIConfigurationSuggestion } from "@/lib/actions";
 import type { PlasmaOptimizationSuggestionOutput } from "@/ai/flows/plasma-optimization-suggestion";
 
+interface TelemetrySnapshot {
+  simulationDurationSeconds: number;
+  relativeTemperature: number;
+  confinement: number;
+  fusionRate: number;
+  totalEnergyGenerated: number;
+  numParticles: number;
+}
+
 interface AIAssistantProps {
-  telemetry: {
-    relativeTemperature: number;
-    totalEnergyGenerated: number;
-    particleCount: number;
-    simulationDuration: number;
-  };
+  telemetryHistory: TelemetrySnapshot[];
 }
 
 const recommendationIcons = {
@@ -24,7 +28,7 @@ const recommendationIcons = {
   maintain: <Minus className="h-5 w-5 text-gray-400" />,
 };
 
-export function AIAssistant({ telemetry }: AIAssistantProps) {
+export function AIAssistant({ telemetryHistory }: AIAssistantProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<PlasmaOptimizationSuggestionOutput | null>(null);
   const { toast } = useToast();
@@ -33,11 +37,17 @@ export function AIAssistant({ telemetry }: AIAssistantProps) {
     setIsLoading(true);
     setSuggestion(null);
     try {
+      if (telemetryHistory.length === 0) {
+        toast({
+            variant: "default",
+            title: "Not enough data",
+            description: "Let the simulation run for a few seconds before getting a suggestion.",
+        });
+        setIsLoading(false);
+        return;
+      }
       const result = await getAIConfigurationSuggestion({
-        relativeTemperature: telemetry.relativeTemperature,
-        totalEnergyGenerated: telemetry.totalEnergyGenerated,
-        numParticles: telemetry.particleCount,
-        simulationDurationSeconds: telemetry.simulationDuration,
+        history: telemetryHistory,
       });
       setSuggestion(result);
     } catch (error) {
