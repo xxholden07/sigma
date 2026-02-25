@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { getAIConfigurationSuggestion } from "@/lib/actions";
 import type { PlasmaOptimizationSuggestionOutput } from "@/ai/flows/plasma-optimization-suggestion";
-import type { ReactionMode } from "@/lib/simulation-types";
+import type { ReactionMode, SimulationRun } from "@/lib/simulation-types";
 
 interface TelemetrySnapshot {
   simulationDurationSeconds: number;
@@ -31,6 +31,7 @@ interface AIAssistantProps {
     confinement: number;
     reactionMode: ReactionMode;
   };
+  pastRuns?: SimulationRun[];
   onTemperatureChange: (value: number) => void;
   onConfinementChange: (value: number) => void;
   onReactionModeChange: (mode: ReactionMode) => void;
@@ -40,6 +41,7 @@ interface AIAssistantProps {
 export function AIAssistant({ 
   telemetryHistory, 
   settings, 
+  pastRuns = [],
   onTemperatureChange, 
   onConfinementChange,
   onReactionModeChange,
@@ -56,6 +58,7 @@ export function AIAssistant({
   const stableProps = useRef({ 
     telemetryHistory, 
     settings, 
+    pastRuns,
     onTemperatureChange, 
     onConfluenceChange: onConfinementChange, 
     onReactionModeChange,
@@ -70,6 +73,7 @@ export function AIAssistant({
     stableProps.current = { 
       telemetryHistory, 
       settings, 
+      pastRuns,
       onTemperatureChange, 
       onConfluenceChange: onConfinementChange, 
       onReactionModeChange,
@@ -79,7 +83,7 @@ export function AIAssistant({
       setSuggestion, 
       setIsAutoPilotOn 
     };
-  }, [telemetryHistory, settings, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, toast]);
+  }, [telemetryHistory, settings, pastRuns, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, toast]);
 
   useEffect(() => {
     if (!isAutoPilotOn) return;
@@ -88,6 +92,7 @@ export function AIAssistant({
       const { 
         telemetryHistory: currentHistory, 
         settings: currentSettings, 
+        pastRuns: currentPastRuns,
         onTemperatureChange: currentOnTempChange, 
         onConfluenceChange: currentOnConfChange,
         onReactionModeChange: currentOnModeChange,
@@ -105,6 +110,13 @@ export function AIAssistant({
         const result = await getAIConfigurationSuggestion({
           history: currentHistory,
           reactionMode: currentSettings.reactionMode,
+          pastRuns: currentPastRuns.slice(0, 5).map(r => ({
+            outcome: r.outcome,
+            totalEnergyGeneratedMeV: r.totalEnergyGeneratedMeV,
+            initialTemperature: r.initialTemperature,
+            initialConfinement: r.initialConfinement,
+            reactionMode: r.reactionMode,
+          }))
         });
         currentSetSuggestion(result);
 
@@ -123,7 +135,7 @@ export function AIAssistant({
           return;
         }
 
-        const tempAdj = 12;
+        const tempAdj = 10;
         const confAdj = 0.05;
 
         let newTemp = currentSettings.temperature;
@@ -132,7 +144,7 @@ export function AIAssistant({
 
         let newConf = currentSettings.confinement;
         if (result.confinementRecommendation === 'increase') newConf += confAdj;
-        else if (result.confluenceRecommendation === 'decrease') newConf -= confAdj;
+        else if (result.confinementRecommendation === 'decrease') newConf -= confAdj;
 
         currentOnTempChange(Math.max(0, Math.min(200, newTemp)));
         currentOnConfChange(parseFloat(Math.max(0, Math.min(1, newConf)).toFixed(2)));
@@ -159,6 +171,13 @@ export function AIAssistant({
       const result = await getAIConfigurationSuggestion({
         history: telemetryHistory,
         reactionMode: settings.reactionMode,
+        pastRuns: pastRuns.slice(0, 5).map(r => ({
+          outcome: r.outcome,
+          totalEnergyGeneratedMeV: r.totalEnergyGeneratedMeV,
+          initialTemperature: r.initialTemperature,
+          initialConfinement: r.initialConfinement,
+          reactionMode: r.reactionMode,
+        }))
       });
       setSuggestion(result);
     } catch (error) {
@@ -193,7 +212,7 @@ export function AIAssistant({
             <Bot className="h-3 w-3" />
             PROMETEU (AUTO)
           </Label>
-          <p className="text-[10px] text-muted-foreground italic">Controle autônomo e ajustes finos.</p>
+          <p className="text-[10px] text-muted-foreground italic">Controle autônomo e aprendizado histórico.</p>
         </div>
         <Switch
           id="autopilot-switch"

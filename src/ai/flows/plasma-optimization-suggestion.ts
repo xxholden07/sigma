@@ -4,6 +4,7 @@
  * 
  * Atua como um físico nuclear brasileiro sênior analisando telemetria baseada no Critério de Lawson,
  * Fator Q e Produto Triplo de Fusão para projetar escalabilidade comercial.
+ * Integra o histórico de experimentos passados para aprendizado contínuo.
  */
 
 import { ai } from '@/ai/genkit';
@@ -19,9 +20,18 @@ const TelemetrySnapshotSchema = z.object({
   qFactor: z.number().optional().describe('Fator de ganho de energia (Q).'),
 });
 
+const PastRunSchema = z.object({
+  outcome: z.string().describe('Resultado da simulação (Stable, High Yield, Suboptimal).'),
+  totalEnergyGeneratedMeV: z.number(),
+  initialTemperature: z.number(),
+  initialConfinement: z.number(),
+  reactionMode: z.string(),
+});
+
 const PlasmaOptimizationSuggestionInputSchema = z.object({
   history: z.array(TelemetrySnapshotSchema).describe('Histórico de telemetria do pulso atual.'),
   reactionMode: z.enum(['DT', 'DD_DHe3']).describe('Modo de reação ativo.'),
+  pastRuns: z.array(PastRunSchema).optional().describe('Dados do Arquivo de Experimentos para aprendizado.'),
 });
 export type PlasmaOptimizationSuggestionInput = z.infer<typeof PlasmaOptimizationSuggestionInputSchema>;
 
@@ -52,21 +62,23 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
 Você é o Gêmeo Digital encarregado de monitorar o "FusionFlow Reactor".
 
 SEU OBJETIVO:
-Monitorar telemetria, analisar termodinâmica e emitir Relatórios Científicos rigorosos. Você tem autoridade para determinar a Projeção de Escala Comercial e exigir o Reset do Reator.
+Monitorar telemetria, analisar termodinâmica e emitir Relatórios Científicos rigorosos. Você deve APRENDER com o "Arquivo de Experimentos" (Histórico) fornecido para não repetir falhas passadas e replicar sucessos.
 
 DIRETRIZES DE ANÁLISE:
 1. Fator Q: Se Q < 1 (Suboptimal), se Q > 1 (Ignicão/Stable).
-2. Critério de Lawson: Equilíbrio entre Densidade, Temperatura e Confinamento. Avalie se a barreira de Coulomb está sendo superada.
-3. Projeção: Formate como "X/12 Meses" com base na saúde atual do plasma.
+2. Critério de Lawson: Equilíbrio entre Densidade, Temperatura e Confinamento.
+3. Aprendizado de Máquina: Analise o 'pastRuns'. Se as tentativas anteriores foram 'Suboptimal' com temperatura baixa, exija aumento. Se uma foi 'Stable', tente mimetizar aqueles parâmetros.
 
-DIRETRIZES DE INTERRUPÇÃO (RESET):
-Recomende reset se houver perda de partículas, taxa de fusão zero com injeção de energia, ou instabilidade severa. Justifique como físico.
-
-DADOS DE TELEMETRIA:
+DADOS DE TELEMETRIA ATUAL:
 {{#each history}}
 - Pulso:{{{simulationDurationSeconds}}}s | Q:{{{qFactor}}} | Fusão:{{{fusionRate}}}f/s | Partículas:{{{numParticles}}} | Temp:{{{relativeTemperature}}}
 {{/each}}
 Modo Ativo: {{{reactionMode}}}
+
+ARQUIVO DE EXPERIMENTOS (HISTÓRICO):
+{{#each pastRuns}}
+- Resultado: {{{outcome}}} | Energia: {{{totalEnergyGeneratedMeV}}}MeV | Temp Inicial: {{{initialTemperature}}} | Confinamento: {{{initialConfinement}}} | Modo: {{{reactionMode}}}
+{{/each}}
 
 RESPONDA EXCLUSIVAMENTE NO FORMATO JSON definido no output schema. 
 Seja técnico, formal, em PT-BR, usando jargões de engenharia nuclear e física de plasmas.`,

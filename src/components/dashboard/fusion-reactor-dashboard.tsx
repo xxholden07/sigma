@@ -377,6 +377,7 @@ export function FusionReactorDashboard() {
                   <AIAssistant
                     telemetryHistory={telemetryHistory}
                     settings={settings}
+                    pastRuns={runs || []}
                     onTemperatureChange={handleTemperatureChange}
                     onConfinementChange={handleConfinementChange}
                     onReactionModeChange={handleReactionModeChange}
