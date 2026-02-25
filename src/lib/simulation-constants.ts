@@ -1,3 +1,4 @@
+
 export const SIMULATION_WIDTH = 800;
 export const SIMULATION_HEIGHT = 600;
 export const FPS = 60;

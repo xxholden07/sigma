@@ -81,7 +81,7 @@ export function FusionReactorDashboard() {
   // Contador de simulações para a barra superior
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'users', user.uid, 'simulationRuns'));
+    return query(collection(firestore, 'users', user.uid, 'simulationRuns'), orderBy('createdAt', 'desc'));
   }, [firestore, user]);
   const { data: allRuns } = useCollection<SimulationRun>(runsQuery);
 
@@ -107,7 +107,7 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    // Captura os dados ricos da telemetria final
+    // Captura os dados ricos da telemetria final para o buffer de experiência
     const runData: Omit<SimulationRun, 'id'> = {
         userId: user.uid,
         createdAt: new Date().toISOString(),
