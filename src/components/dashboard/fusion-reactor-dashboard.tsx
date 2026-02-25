@@ -23,7 +23,7 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Target, Microscope } from "lucide-react";
+import { Target, Microscope, ShieldCheck } from "lucide-react";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   if (mode === 'DD_DHe3') {
@@ -76,7 +76,6 @@ export function FusionReactorDashboard() {
   const [peakFusionRate, setPeakFusionRate] = useState(0);
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
-  // Busca o número total de tentativas salvas
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'users', user.uid, 'simulationRuns'), orderBy('createdAt', 'desc'));
@@ -398,9 +397,9 @@ export function FusionReactorDashboard() {
               </div>
             </div>
 
-            <Badge variant={telemetry.fusionEfficiency > 50 ? "default" : "outline"} className="hidden sm:flex h-8 gap-2 border-primary/20">
-              <Target className={`h-3 w-3 ${telemetry.fusionEfficiency > 0 ? "animate-spin" : ""}`} />
-              STATUS: {telemetry.fusionEfficiency > 0 ? "PLASMA ATIVO" : "SISTEMA OCIOSO"}
+            <Badge variant={telemetry.simulationDuration > 120 ? "default" : "outline"} className="hidden sm:flex h-8 gap-2 border-primary/20">
+              <ShieldCheck className={`h-3 w-3 ${telemetry.simulationDuration > 120 ? "text-green-400" : "text-primary"}`} />
+              META: {telemetry.simulationDuration >= 120 ? "12 MESES ATINGIDOS" : `${Math.floor(telemetry.simulationDuration / 10)} / 12 MESES`}
             </Badge>
             <SidebarTrigger />
           </div>
@@ -435,6 +434,7 @@ export function FusionReactorDashboard() {
                     onTemperatureChange={handleTemperatureChange}
                     onConfinementChange={handleConfinementChange}
                     onReactionModeChange={handleReactionModeChange}
+                    onReset={() => resetSimulation()}
                   />
                 </SidebarGroupContent>
               </SidebarGroup>

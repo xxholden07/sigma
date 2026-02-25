@@ -1,82 +1,41 @@
 'use server';
 /**
- * @fileOverview An AI assistant that suggests optimal temperature, confinement settings, and fuel cycles.
+ * @fileOverview An AI assistant that suggests optimal temperature, confinement settings, fuel cycles and decides on reactor resets.
  *
  * - getPlasmaOptimizationSuggestion - A function that handles the plasma optimization suggestion process.
- * - PlasmaOptimizationSuggestionInput - The input type for the getPlasmaOptimizationSuggestion function.
- * - PlasmaOptimizationSuggestionOutput - The return type for the getPlasmaOptimizationSuggestion function.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const TelemetrySnapshotSchema = z.object({
-  simulationDurationSeconds: z
-    .number()
-    .describe(
-      'The duration of the simulation in seconds at the time of this snapshot.'
-    ),
-  relativeTemperature: z
-    .number()
-    .describe('The relative temperature of the plasma (arbitrary unit).'),
+  simulationDurationSeconds: z.number().describe('The duration of the simulation in seconds.'),
+  relativeTemperature: z.number().describe('The relative temperature of the plasma.'),
   confinement: z.number().describe('The confinement strength setting.'),
-  fusionRate: z
-    .number()
-    .describe('The number of fusion events per second (f/s).'),
-  totalEnergyGenerated: z
-    .number()
-    .describe('The total energy generated so far in MeV.'),
-  numParticles: z
-    .number()
-    .describe('The current number of particles in the simulation.'),
-  averageKineticEnergy: z
-    .number()
-    .describe('The average kinetic energy of particles in the simulation.')
-    .optional(),
+  fusionRate: z.number().describe('The number of fusion events per second (f/s).'),
+  totalEnergyGenerated: z.number().describe('The total energy generated so far in MeV.'),
+  numParticles: z.number().describe('The current number of particles.'),
+  averageKineticEnergy: z.number().optional(),
 });
 
 const PlasmaOptimizationSuggestionInputSchema = z.object({
-  history: z
-    .array(TelemetrySnapshotSchema)
-    .describe(
-      'A recent history of telemetry and settings snapshots, ordered from oldest to newest.'
-    ),
-  reactionMode: z
-    .enum(['DT', 'DD_DHe3'])
-    .describe('The current fuel cycle mode of the reactor.'),
+  history: z.array(TelemetrySnapshotSchema).describe('Recent history of telemetry snapshots.'),
+  reactionMode: z.enum(['DT', 'DD_DHe3']).describe('The current fuel cycle mode.'),
 });
-export type PlasmaOptimizationSuggestionInput = z.infer<
-  typeof PlasmaOptimizationSuggestionInputSchema
->;
+export type PlasmaOptimizationSuggestionInput = z.infer<typeof PlasmaOptimizationSuggestionInputSchema>;
 
 const PlasmaOptimizationSuggestionOutputSchema = z.object({
-  temperatureRecommendation: z
-    .enum(['increase', 'decrease', 'maintain'])
-    .describe('Recommended adjustment for the relative temperature.'),
-  temperatureReason: z
-    .string()
-    .describe('Reasoning for the recommended temperature adjustment.'),
-  confinementRecommendation: z
-    .enum(['increase', 'decrease', 'maintain'])
-    .describe('Recommended adjustment for the confinement strength.'),
-  confinementReason: z
-    .string()
-    .describe('Reasoning for the recommended confinement strength adjustment.'),
-  recommendedReactionMode: z
-    .enum(['DT', 'DD_DHe3'])
-    .describe('The recommended fuel cycle for the next phase of the simulation.'),
-  reactionModeReason: z
-    .string()
-    .describe('Reasoning for choosing or maintaining the fuel cycle.'),
-  overallInsight: z
-    .string()
-    .describe(
-      'Overall insight or detailed recommendation to improve fusion rate and energy output.'
-    ),
+  temperatureRecommendation: z.enum(['increase', 'decrease', 'maintain']),
+  temperatureReason: z.string(),
+  confinementRecommendation: z.enum(['increase', 'decrease', 'maintain']),
+  confinementReason: z.string(),
+  recommendedReactionMode: z.enum(['DT', 'DD_DHe3']),
+  reactionModeReason: z.string(),
+  shouldReset: z.boolean().describe('Whether the AI recommends a full reactor reset to clear unstable plasma or start a new strategic phase.'),
+  resetReason: z.string().optional().describe('Reasoning if a reset is recommended.'),
+  overallInsight: z.string().describe('Strategy to achieve the 12-month stability goal.'),
 });
-export type PlasmaOptimizationSuggestionOutput = z.infer<
-  typeof PlasmaOptimizationSuggestionOutputSchema
->;
+export type PlasmaOptimizationSuggestionOutput = z.infer<typeof PlasmaOptimizationSuggestionOutputSchema>;
 
 export async function getPlasmaOptimizationSuggestion(
   input: PlasmaOptimizationSuggestionInput
@@ -88,27 +47,20 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `Você é o sistema nervoso central de um reator de fusão experimental. Sua missão é alcançar a ignição estável e máxima eficiência.
+  prompt: `Você é o sistema de controle de IA de um reator de fusão.
+OBJETIVO CRÍTICO: Manter a estabilidade por 12 meses (120 segundos de simulação).
 
-Você tem controle sobre:
-1. Temperatura (Energia cinética das partículas)
-2. Confinamento (Densidade e pressão magnética)
-3. Ciclo de Combustível (Modo de Reação)
-
-Modo 'DT': Alta taxa de fusão inicial, mas gera muitos nêutrons. Ideal para produção massiva de energia térmica.
-Modo 'DD_DHe3': Mais difícil de iniciar, mas aneutrônico (limpo) e permite conversão direta. Ideal para operações sustentáveis e estáveis.
-
-Análise e Decisão:
-- Analise se o modo atual está rendendo o esperado.
-- Se a taxa de fusão estiver estagnada em 'DT', você pode sugerir mudar para 'DD_DHe3' para tentar estabilizar o plasma ou vice-versa se precisar de um "boost" de energia.
-- Você pode decidir trocar o modo de combustível se isso for levar a uma eficiência global maior ou se o plasma estiver colapsando.
+Análise Estratégica:
+1. Avalie se o plasma está saudável. Se a taxa de fusão cair muito ou se a temperatura/confinamento estiverem em níveis perigosos sem retorno, você pode decidir REINICIAR o reator (shouldReset: true).
+2. Você pode alternar entre 'DT' (Alta Energia) e 'DD_DHe3' (Estabilidade Aneutrônica) para alcançar o objetivo de 12 meses.
+3. Se o reator estiver perto de colapsar, um reset estratégico é melhor do que uma falha catastrófica.
 
 Histórico recente:
 {{#each history}}
-- {{{simulationDurationSeconds}}}s | T:{{{relativeTemperature}}} | C:{{{confinement}}} | Fusão:{{{fusionRate}}}f/s | Partículas:{{{numParticles}}} | Energia:{{{totalEnergyGenerated}}}MeV
+- {{{simulationDurationSeconds}}}s | Fusão:{{{fusionRate}}}f/s | Partículas:{{{numParticles}}} | Energia:{{{totalEnergyGenerated}}}MeV
 {{/each}}
 
-Responda em JSON. Se decidir trocar o combustível, justifique em 'reactionModeReason'.`,
+Responda em JSON. Priorize a continuidade e estabilidade.`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(

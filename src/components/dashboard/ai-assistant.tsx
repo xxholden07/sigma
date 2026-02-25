@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowDown, ArrowUp, Bot, Loader2, Minus, Zap, Shuffle } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, Loader2, Minus, Zap, Shuffle, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { getAIConfigurationSuggestion } from "@/lib/actions";
 import type { PlasmaOptimizationSuggestionOutput } from "@/ai/flows/plasma-optimization-suggestion";
@@ -32,6 +33,7 @@ interface AIAssistantProps {
   onTemperatureChange: (value: number) => void;
   onConfinementChange: (value: number) => void;
   onReactionModeChange: (mode: ReactionMode) => void;
+  onReset: () => void;
 }
 
 const recommendationIcons = {
@@ -45,12 +47,17 @@ export function AIAssistant({
   settings, 
   onTemperatureChange, 
   onConfinementChange,
-  onReactionModeChange 
+  onReactionModeChange,
+  onReset
 }: AIAssistantProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<PlasmaOptimizationSuggestionOutput | null>(null);
   const [isAutoPilotOn, setIsAutoPilotOn] = useState(false);
   const { toast } = useToast();
+
+  const currentDuration = telemetryHistory.length > 0 ? telemetryHistory[telemetryHistory.length - 1].simulationDurationSeconds : 0;
+  const stabilityProgress = Math.min((currentDuration / 120) * 100, 100);
+  const monthsOperated = Math.floor(currentDuration / 10);
 
   const stableProps = useRef({ 
     telemetryHistory, 
@@ -58,6 +65,7 @@ export function AIAssistant({
     onTemperatureChange, 
     onConfinementChange, 
     onReactionModeChange,
+    onReset,
     toast, 
     setIsLoading, 
     setSuggestion, 
@@ -71,12 +79,13 @@ export function AIAssistant({
       onTemperatureChange, 
       onConfinementChange, 
       onReactionModeChange,
+      onReset,
       toast, 
       setIsLoading, 
       setSuggestion, 
       setIsAutoPilotOn 
     };
-  }, [telemetryHistory, settings, onTemperatureChange, onConfinementChange, onReactionModeChange, toast]);
+  }, [telemetryHistory, settings, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, toast]);
 
   useEffect(() => {
     if (!isAutoPilotOn) return;
@@ -88,6 +97,7 @@ export function AIAssistant({
         onTemperatureChange: currentOnTempChange, 
         onConfinementChange: currentOnConfChange,
         onReactionModeChange: currentOnModeChange,
+        onReset: currentOnReset,
         toast: currentToast,
         setIsLoading: currentSetIsLoading,
         setSuggestion: currentSetSuggestion,
@@ -104,6 +114,16 @@ export function AIAssistant({
         });
         currentSetSuggestion(result);
 
+        // Se a IA decidir pelo Reset Estratégico
+        if (result.shouldReset) {
+          currentToast({
+            title: "Reset Estratégico",
+            description: `IA reiniciando reator: ${result.resetReason}`,
+          });
+          currentOnReset();
+          return;
+        }
+
         // Se a IA decidir trocar o combustível
         if (result.recommendedReactionMode !== currentSettings.reactionMode) {
           currentToast({
@@ -111,7 +131,6 @@ export function AIAssistant({
             description: `IA alternando para modo ${result.recommendedReactionMode}: ${result.reactionModeReason}`,
           });
           currentOnModeChange(result.recommendedReactionMode);
-          // Reinicia o ciclo após a troca
           return;
         }
 
@@ -135,7 +154,7 @@ export function AIAssistant({
         currentToast({
           variant: "destructive",
           title: "Erro no Piloto Automático",
-          description: "Perda de conexão com a IA.",
+          description: "Perda de conexão com o núcleo de IA.",
         });
         currentSetIsAutoPilotOn(false);
       } finally {
@@ -144,7 +163,7 @@ export function AIAssistant({
     };
 
     runAutoPilotCycle();
-    const intervalId = setInterval(runAutoPilotCycle, 10000); // Aumentado para 10s para estabilidade
+    const intervalId = setInterval(runAutoPilotCycle, 10000);
     return () => clearInterval(intervalId);
   }, [isAutoPilotOn]);
 
@@ -155,7 +174,7 @@ export function AIAssistant({
       if (telemetryHistory.length < 3) {
         toast({
             title: "Dados Insuficientes",
-            description: "Aguarde o reator estabilizar para análise.",
+            description: "Aguarde a ignição do plasma para análise.",
         });
         setIsLoading(false);
         return;
@@ -169,7 +188,7 @@ export function AIAssistant({
       toast({
         variant: "destructive",
         title: "Erro no Assistente",
-        description: "Não foi possível obter a sugestão.",
+        description: "Não foi possível processar a telemetria.",
       });
     } finally {
       setIsLoading(false);
@@ -178,13 +197,23 @@ export function AIAssistant({
 
   return (
     <div className="space-y-4">
+      {/* Meta de Estabilidade */}
+      <div className="rounded-lg border bg-slate-900/40 p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-primary uppercase tracking-tighter">Meta: 12 Meses de Estabilidade</span>
+          <span className="text-[10px] font-mono font-bold text-white">{monthsOperated}/12 Meses</span>
+        </div>
+        <Progress value={stabilityProgress} className="h-1 bg-slate-800" />
+        <p className="text-[8px] text-muted-foreground italic text-center">Progresso baseado no tempo de contenção do plasma.</p>
+      </div>
+
       <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 p-3">
         <div className="space-y-0.5">
           <Label htmlFor="autopilot-switch" className="text-xs font-bold flex items-center gap-2 text-primary">
             <Zap className="h-3 w-3 fill-primary" />
             PILOTO AUTOMÁTICO
           </Label>
-          <p className="text-[10px] text-muted-foreground italic">IA controla Temperatura, Confinamento e Ciclo.</p>
+          <p className="text-[10px] text-muted-foreground">IA tem controle total (incluindo Reset).</p>
         </div>
         <Switch
           id="autopilot-switch"
@@ -202,39 +231,53 @@ export function AIAssistant({
       {suggestion && (
         <div className="rounded-lg border bg-card p-3 space-y-3 shadow-inner">
           <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Sistema de Decisão IA</span>
-            <Badge variant="outline" className="text-[8px] h-4 uppercase">
-              Modo Atual: {settings.reactionMode}
-            </Badge>
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Log de Decisão IA</span>
+            {suggestion.shouldReset ? (
+               <Badge variant="destructive" className="text-[8px] h-4 uppercase animate-pulse">REINICIANDO</Badge>
+            ) : (
+               <Badge variant="outline" className="text-[8px] h-4 uppercase">Modo: {settings.reactionMode}</Badge>
+            )}
           </div>
           
           <div className="space-y-3">
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5">{recommendationIcons[suggestion.temperatureRecommendation]}</div>
-              <div className="space-y-0.5 text-[11px]">
-                <p className="font-bold text-orange-400 uppercase">Temperatura</p>
-                <p className="text-muted-foreground leading-tight">{suggestion.temperatureReason}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5">{recommendationIcons[suggestion.confinementRecommendation]}</div>
-              <div className="space-y-0.5 text-[11px]">
-                <p className="font-bold text-blue-400 uppercase">Confinamento</p>
-                <p className="text-muted-foreground leading-tight">{suggestion.confinementReason}</p>
-              </div>
-            </div>
+            {!suggestion.shouldReset ? (
+              <>
+                <div className="flex items-start gap-2">
+                  <div className="mt-0.5">{recommendationIcons[suggestion.temperatureRecommendation]}</div>
+                  <div className="space-y-0.5 text-[11px]">
+                    <p className="font-bold text-orange-400 uppercase">Temperatura</p>
+                    <p className="text-muted-foreground leading-tight">{suggestion.temperatureReason}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <div className="mt-0.5">{recommendationIcons[suggestion.confinementRecommendation]}</div>
+                  <div className="space-y-0.5 text-[11px]">
+                    <p className="font-bold text-blue-400 uppercase">Confinamento</p>
+                    <p className="text-muted-foreground leading-tight">{suggestion.confinementReason}</p>
+                  </div>
+                </div>
 
-            <div className="flex items-start gap-2 border-t pt-2">
-              <div className="mt-0.5 text-purple-400"><Shuffle className="h-3 w-3" /></div>
-              <div className="space-y-0.5 text-[11px]">
-                <p className="font-bold text-purple-400 uppercase">Ciclo de Combustível</p>
-                <p className="text-muted-foreground leading-tight">
-                  Recomendado: <span className="font-bold text-foreground">{suggestion.recommendedReactionMode}</span>
-                </p>
-                <p className="text-[10px] italic leading-tight text-muted-foreground/80">{suggestion.reactionModeReason}</p>
+                <div className="flex items-start gap-2 border-t pt-2">
+                  <div className="mt-0.5 text-purple-400"><Shuffle className="h-3 w-3" /></div>
+                  <div className="space-y-0.5 text-[11px]">
+                    <p className="font-bold text-purple-400 uppercase">Fluxo de Combustível</p>
+                    <p className="text-muted-foreground leading-tight">
+                      Estado: <span className="font-bold text-foreground">{suggestion.recommendedReactionMode}</span>
+                    </p>
+                    <p className="text-[10px] italic leading-tight text-muted-foreground/80">{suggestion.reactionModeReason}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-start gap-2 bg-destructive/10 p-2 rounded border border-destructive/20">
+                <RotateCcw className="h-4 w-4 text-destructive mt-0.5" />
+                <div className="space-y-0.5 text-[11px]">
+                  <p className="font-bold text-destructive uppercase">Reset Recomendado</p>
+                  <p className="text-muted-foreground leading-tight">{suggestion.resetReason}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
           
           <div className="pt-2 border-t">
