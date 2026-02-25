@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRef, useLayoutEffect } from "react";
@@ -6,6 +7,7 @@ import {
   PARTICLE_RADIUS,
   DEUTERIUM_COLOR,
   TRITIUM_COLOR,
+  HELIUM3_COLOR,
   CONFINEMENT_ZONE_COLOR,
   SIMULATION_WIDTH,
   SIMULATION_HEIGHT,
@@ -18,7 +20,6 @@ interface SimulationCanvasProps {
 
 export function SimulationCanvas({ getParticles, getFlashes }: SimulationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameIdRef = useRef<number>();
 
   useLayoutEffect(() => {
@@ -27,8 +28,9 @@ export function SimulationCanvas({ getParticles, getFlashes }: SimulationCanvasP
     const context = canvas.getContext("2d");
     if (!context) return;
 
+    let frameId: number;
     const render = () => {
-      animationFrameIdRef.current = requestAnimationFrame(render);
+      frameId = requestAnimationFrame(render);
       
       const particles = getParticles();
       const flashes = getFlashes();
@@ -37,7 +39,12 @@ export function SimulationCanvas({ getParticles, getFlashes }: SimulationCanvasP
         return;
       }
 
-      const { width, height } = canvas;
+      const { width, height } = canvas.getBoundingClientRect();
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      
       const scaleX = width / SIMULATION_WIDTH;
       const scaleY = height / SIMULATION_HEIGHT;
 
@@ -54,7 +61,11 @@ export function SimulationCanvas({ getParticles, getFlashes }: SimulationCanvasP
 
       // Draw particles
       particles.forEach((p) => {
-        context.fillStyle = p.type === 'D' ? DEUTERIUM_COLOR : TRITIUM_COLOR;
+        context.fillStyle = p.type === 'D' 
+            ? DEUTERIUM_COLOR 
+            : p.type === 'T' 
+            ? TRITIUM_COLOR
+            : HELIUM3_COLOR;
         context.beginPath();
         context.arc(p.x * scaleX, p.y * scaleY, PARTICLE_RADIUS, 0, 2 * Math.PI);
         context.fill();
@@ -71,33 +82,13 @@ export function SimulationCanvas({ getParticles, getFlashes }: SimulationCanvasP
 
     render();
 
-    const resizeCanvas = () => {
-      const container = containerRef.current;
-      if (container) {
-        const { width, height } = container.getBoundingClientRect();
-        canvas.width = width;
-        canvas.height = height;
-      }
-    };
-
-    const resizeObserver = new ResizeObserver(resizeCanvas);
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-    resizeCanvas();
-
     return () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-      }
-      if (containerRef.current) {
-        resizeObserver.unobserve(containerRef.current);
-      }
+      cancelAnimationFrame(frameId);
     };
   }, [getParticles, getFlashes]);
 
   return (
-    <div ref={containerRef} className="absolute inset-0 h-full w-full">
+    <div className="absolute inset-0 h-full w-full">
       <canvas ref={canvasRef} style={{ backgroundColor: "hsl(var(--background))" }} />
     </div>
   );

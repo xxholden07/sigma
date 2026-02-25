@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import type { Particle, FusionFlash, SimulationRun } from "@/lib/simulation-types";
+import type { Particle, FusionFlash, SimulationRun, ReactionMode } from "@/lib/simulation-types";
 import {
   INITIAL_PARTICLE_COUNT,
   INITIAL_TEMPERATURE,
   INITIAL_CONFINEMENT,
   ENERGY_THRESHOLD,
   DT_FUSION_ENERGY_MEV,
+  DHE3_FUSION_ENERGY_MEV,
   PARTICLE_RADIUS,
   SIMULATION_WIDTH,
   SIMULATION_HEIGHT,
@@ -18,11 +19,24 @@ import { ControlPanel } from "./control-panel";
 import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { FusionIcon } from "../icons/fusion-icon";
-import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, useMemoFirebase } from "@/firebase";
+import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 
-function createInitialParticles(count: number): Particle[] {
+function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
+  if (mode === 'DD_DHe3') {
+    // Start with only Deuterium particles for the D-D / D-He3 cycle
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      x: 200 + Math.random() * 400,
+      y: 150 + Math.random() * 450,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      type: 'D',
+    }));
+  }
+
+  // Default: D-T cycle
   return Array.from({ length: count }, (_, i) => ({
     id: i,
     x: 200 + Math.random() * 400,
@@ -46,6 +60,7 @@ export function FusionReactorDashboard() {
     confinement: INITIAL_CONFINEMENT,
     energyThreshold: ENERGY_THRESHOLD,
     initialParticleCount: INITIAL_PARTICLE_COUNT,
+    reactionMode: 'DT' as ReactionMode,
   });
   const [telemetry, setTelemetry] = useState({
     totalEnergyGenerated: 0,
@@ -60,7 +75,7 @@ export function FusionReactorDashboard() {
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
   const simulationStateRef = useRef({
-    particles: createInitialParticles(settings.initialParticleCount),
+    particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode),
     flashes: [] as FusionFlash[],
     nextParticleId: settings.initialParticleCount,
     nextFlashId: 0,
@@ -91,25 +106,30 @@ export function FusionReactorDashboard() {
         initialTemperature: INITIAL_TEMPERATURE,
         initialConfinement: INITIAL_CONFINEMENT,
         finalEnergyThreshold: settings.energyThreshold,
+        reactionMode: settings.reactionMode,
     };
 
     const runsCollectionRef = collection(firestore, 'users', user.uid, 'simulationRuns');
     addDocumentNonBlocking(runsCollectionRef, runData);
   }, [user, firestore, telemetry, peakFusionRate, settings]);
 
-  const resetSimulation = useCallback(() => {
+  const resetSimulation = useCallback((newMode?: ReactionMode) => {
     handleSaveSimulation();
 
+    const reactionMode = newMode || settings.reactionMode;
+
     const newSettings = {
+      ...settings,
       temperature: INITIAL_TEMPERATURE,
       confinement: INITIAL_CONFINEMENT,
       energyThreshold: ENERGY_THRESHOLD,
       initialParticleCount: INITIAL_PARTICLE_COUNT,
+      reactionMode,
     };
     setSettings(newSettings);
 
     simulationStateRef.current = {
-        particles: createInitialParticles(newSettings.initialParticleCount),
+        particles: createInitialParticles(newSettings.initialParticleCount, newSettings.reactionMode),
         flashes: [],
         nextParticleId: newSettings.initialParticleCount,
         nextFlashId: 0,
@@ -133,7 +153,7 @@ export function FusionReactorDashboard() {
     
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
-  }, [handleSaveSimulation]);
+  }, [handleSaveSimulation, settings]);
 
   const handleTemperatureChange = useCallback((newTemp: number) => {
     const oldTemp = settings.temperature;
@@ -167,13 +187,18 @@ export function FusionReactorDashboard() {
     setSettings(s => ({...s, initialParticleCount: value}));
   }, []);
 
+  const handleReactionModeChange = useCallback((mode: ReactionMode) => {
+    resetSimulation(mode);
+  }, [resetSimulation]);
+
   useEffect(() => {
     let animationFrameId: number;
     
     const gameLoop = () => {
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
-      const { confinement, energyThreshold } = settings;
+      const { confinement, energyThreshold, reactionMode } = settings;
 
+      // Apply confinement and wall collision physics
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
         const dy = (SIMULATION_HEIGHT / 2) - p.y;
@@ -191,46 +216,88 @@ export function FusionReactorDashboard() {
         if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) p.vy *= -1;
       }
       
-      const newParticles: Particle[] = [];
+      const newParticlesList: Particle[] = [];
       const fusedIndices = new Set<number>();
       let newEnergy = 0;
-
-      for(let i = 0; i < currentParticles.length; i++) {
+    
+      for (let i = 0; i < currentParticles.length; i++) {
         if (fusedIndices.has(i)) continue;
-
-        let fused = false;
+    
+        let hasFusedWithAnother = false;
         for (let j = i + 1; j < currentParticles.length; j++) {
-            if (fusedIndices.has(j)) continue;
+          if (fusedIndices.has(j)) continue;
+    
+          const p1 = currentParticles[i];
+          const p2 = currentParticles[j];
+          const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    
+          if (dist < PARTICLE_RADIUS * 2) {
+            const collisionEnergy = Math.hypot(p1.vx - p2.vx, p1.vy - p2.vy);
+            if (collisionEnergy > energyThreshold) {
+              
+              let particlesToAdd: Particle[] = [];
+              let energyReleased = 0;
+              let createsFlash = false;
+              let reactionType = 'none';
 
-            const p1 = currentParticles[i];
-            const p2 = currentParticles[j];
-
-            const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-
-            if (dist < PARTICLE_RADIUS * 2 && p1.type !== p2.type) {
-                const collisionEnergy = Math.hypot(p1.vx - p2.vx, p1.vy - p2.vy);
-                if (collisionEnergy > energyThreshold) {
-                    fused = true;
-                    fusedIndices.add(i);
-                    fusedIndices.add(j);
-                    newEnergy += DT_FUSION_ENERGY_MEV;
-                    simulationStateRef.current.fusionsInLastSecond++;
-
-                    currentFlashes.push({ id: simulationStateRef.current.nextFlashId++, x: p1.x, y: p1.y, radius: 0, opacity: 1 });
-
-                    const newP1: Particle = { id: simulationStateRef.current.nextParticleId++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 };
-                    const newP2: Particle = { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'T', vx: -1, vy: -1 };
-                    newParticles.push(newP1, newP2);
-                    break;
+              // Determine reaction type based on current mode
+              if (reactionMode === 'DT' && p1.type !== p2.type && (p1.type === 'D' || p1.type === 'T')) {
+                reactionType = 'DT';
+              } else if (reactionMode === 'DD_DHe3') {
+                if (p1.type === 'D' && p2.type === 'D') {
+                  reactionType = 'DD';
+                } else if ((p1.type === 'D' && p2.type === 'He3') || (p1.type === 'He3' && p2.type === 'D')) {
+                  reactionType = 'DHe3';
                 }
+              }
+
+              // Process the determined reaction
+              if (reactionType === 'DT') {
+                energyReleased = DT_FUSION_ENERGY_MEV;
+                createsFlash = true;
+                particlesToAdd.push(
+                  { id: simulationStateRef.current.nextParticleId++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 },
+                  { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'T', vx: -1, vy: -1 }
+                );
+              } else if (reactionType === 'DD') {
+                // D-D fusion creates a He3 particle, no energy flash for this step
+                particlesToAdd.push({
+                  id: simulationStateRef.current.nextParticleId++,
+                  x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2,
+                  vx: (p1.vx + p2.vx) / 2, vy: (p1.vy + p2.vy) / 2,
+                  type: 'He3'
+                });
+              } else if (reactionType === 'DHe3') {
+                energyReleased = DHE3_FUSION_ENERGY_MEV;
+                createsFlash = true;
+                // Replenish with new Deuterium particles
+                particlesToAdd.push(
+                  { id: simulationStateRef.current.nextParticleId++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 },
+                  { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'D', vx: -1, vy: -1 }
+                );
+              }
+    
+              if (reactionType !== 'none') {
+                hasFusedWithAnother = true;
+                fusedIndices.add(j); // Mark p2 as fused
+                newEnergy += energyReleased;
+                newParticlesList.push(...particlesToAdd);
+                if (createsFlash) {
+                  simulationStateRef.current.fusionsInLastSecond++;
+                  currentFlashes.push({ id: simulationStateRef.current.nextFlashId++, x: p1.x, y: p1.y, radius: 0, opacity: 1 });
+                }
+                break; // p1 has fused, move to the next particle in the outer loop
+              }
             }
+          }
         }
-        if (!fused) {
-            newParticles.push(currentParticles[i]);
+    
+        if (!hasFusedWithAnother) {
+          newParticlesList.push(currentParticles[i]);
         }
       }
-      
-      simulationStateRef.current.particles = newParticles;
+
+      simulationStateRef.current.particles = newParticlesList;
       simulationStateRef.current.flashes = currentFlashes.filter(f => {
         f.radius += 2;
         f.opacity -= 0.025;
@@ -247,7 +314,7 @@ export function FusionReactorDashboard() {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [settings.confinement, settings.energyThreshold]);
+  }, [settings]);
   
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -332,6 +399,7 @@ export function FusionReactorDashboard() {
                 onConfinementChange={handleConfinementChange}
                 onEnergyThresholdChange={handleEnergyThresholdChange}
                 onInitialParticleCountChange={handleInitialParticleCountChange}
+                onReactionModeChange={handleReactionModeChange}
                 onReset={resetSimulation}
               />
               <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />

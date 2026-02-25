@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import type { ReactionMode } from "@/lib/simulation-types";
 
 interface ControlPanelProps {
   settings: {
@@ -13,11 +15,13 @@ interface ControlPanelProps {
     confinement: number;
     energyThreshold: number;
     initialParticleCount: number;
+    reactionMode: ReactionMode;
   };
   onTemperatureChange: (value: number) => void;
   onConfinementChange: (value: number) => void;
   onEnergyThresholdChange: (value: number) => void;
   onInitialParticleCountChange: (value: number) => void;
+  onReactionModeChange: (mode: ReactionMode) => void;
   onReset: () => void;
 }
 
@@ -27,6 +31,7 @@ export function ControlPanel({
   onConfinementChange,
   onEnergyThresholdChange,
   onInitialParticleCountChange,
+  onReactionModeChange,
   onReset,
 }: ControlPanelProps) {
   return (
@@ -39,6 +44,42 @@ export function ControlPanel({
         <SlidersHorizontal className="h-6 w-6 text-muted-foreground" />
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="grid gap-3">
+          <Label className="flex items-center gap-2 font-semibold">
+            <Flame className="h-4 w-4" />
+            Fuel Cycle
+          </Label>
+          <RadioGroup
+            value={settings.reactionMode}
+            onValueChange={(value) => onReactionModeChange(value as ReactionMode)}
+            className="grid grid-cols-2 gap-4"
+          >
+            <div>
+              <RadioGroupItem value="DT" id="dt" className="peer sr-only" />
+              <Label
+                htmlFor="dt"
+                className="flex h-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+              >
+                D-T
+              </Label>
+            </div>
+            <div>
+              <RadioGroupItem value="DD_DHe3" id="dd_dhe3" className="peer sr-only" />
+              <Label
+                htmlFor="dd_dhe3"
+                className="flex h-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+              >
+                D-D / D-He3
+              </Label>
+            </div>
+          </RadioGroup>
+          <p className="text-xs text-muted-foreground px-1">
+            {settings.reactionMode === 'DT'
+              ? 'Uses Deuterium and Tritium. The most common approach.'
+              : 'Uses only Deuterium, which fuses to create Helium-3, then fuses D with He-3.'}
+          </p>
+        </div>
+
         <div className="grid gap-2">
           <Label htmlFor="temperature" className="flex items-center gap-2">
             <Thermometer className="h-4 w-4" />
@@ -56,6 +97,7 @@ export function ControlPanel({
             <span className="text-sm font-semibold w-12 text-right">{settings.temperature}</span>
           </div>
         </div>
+
         <div className="grid gap-2">
           <Label htmlFor="confinement" className="flex items-center gap-2">
             <Magnet className="h-4 w-4" />
@@ -74,7 +116,6 @@ export function ControlPanel({
           </div>
         </div>
 
-        {/* Novo Controle: Energy Threshold */}
         <div className="grid gap-2">
           <Label htmlFor="energy-threshold" className="flex items-center gap-2">
             <Flame className="h-4 w-4" />
@@ -95,7 +136,6 @@ export function ControlPanel({
           </div>
         </div>
 
-        {/* Novo Controle: Initial Particle Count */}
         <div className="grid gap-2">
           <Label htmlFor="initial-particle-count" className="flex items-center gap-2">
             <Atom className="h-4 w-4" />
@@ -122,5 +162,3 @@ export function ControlPanel({
     </Card>
   );
 }
-
-    

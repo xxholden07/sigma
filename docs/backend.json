@@ -72,6 +72,11 @@
         "finalEnergyThreshold": {
             "type": "number",
             "description": "The final energy threshold at the end of the run."
+        },
+        "reactionMode": {
+            "type": "string",
+            "description": "The fuel cycle used for the simulation (e.g., 'DT', 'DD_DHe3').",
+            "enum": ["DT", "DD_DHe3"]
         }
       },
       "required": [
@@ -81,7 +86,8 @@
         "durationSeconds",
         "totalEnergyGeneratedMeV",
         "peakFusionRate",
-        "outcome"
+        "outcome",
+        "reactionMode"
       ]
     }
   },

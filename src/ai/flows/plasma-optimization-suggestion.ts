@@ -31,7 +31,8 @@ const TelemetrySnapshotSchema = z.object({
     .describe('The current number of particles in the simulation.'),
   averageKineticEnergy: z
     .number()
-    .describe('The average kinetic energy of particles in the simulation.').optional(), // Adicionado o campo de energia cinética média
+    .describe('The average kinetic energy of particles in the simulation.')
+    .optional(),
 });
 
 const PlasmaOptimizationSuggestionInputSchema = z.object({
@@ -40,6 +41,9 @@ const PlasmaOptimizationSuggestionInputSchema = z.object({
     .describe(
       'A recent history of telemetry and settings snapshots, ordered from oldest to newest.'
     ),
+  reactionMode: z
+    .enum(['DT', 'DD_DHe3'])
+    .describe('The current fuel cycle mode of the reactor.'),
 });
 export type PlasmaOptimizationSuggestionInput = z.infer<
   typeof PlasmaOptimizationSuggestionInputSchema
@@ -78,21 +82,23 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `Você é um operador de reator de fusão e físico de plasma experiente. Seu objetivo é analisar o histórico recente de uma simulação de reator de fusão D-T e fornecer conselhos acionáveis para aumentar a taxa de fusão e a produção de energia. Ao aprender com a tendência das mudanças, você pode dar recomendações mais perspicazes.
+  prompt: `Você é um operador de reator de fusão e físico de plasma experiente. Seu objetivo é analisar o histórico recente de uma simulação de reator de fusão e fornecer conselhos acionáveis para aumentar a taxa de fusão e a produção de energia. O reator está operando no modo de ciclo de combustível: {{{reactionMode}}}.
+
+Modo 'DT': Usa uma mistura de Deutério e Trítio. Esta é a via mais direta para a fusão, mas requer Trítio.
+Modo 'DD_DHe3': Começa apenas com Deutério (D). As reações D-D produzem Hélio-3 (He3), que então se funde com o Deutério em reações D-He3 para gerar energia. Este modo é mais complexo e pode exigir condições diferentes para ser eficiente.
+
+Analise as tendências para o modo atual. Se um aumento na temperatura levou a uma taxa de fusão maior, recomende novos aumentos. Se levou à instabilidade (por exemplo, menor contagem de partículas sem muito aumento na fusão), recomende uma diminuição ou confinamento mais forte. Forneça uma recomendação para a temperatura relativa e a força de confinamento.
+
+Considere o seguinte:
+- Para o modo 'DT', um equilíbrio entre temperatura e confinamento é crucial.
+- Para o modo 'DD_DHe3', você pode precisar de temperaturas mais altas para iniciar as reações D-D e, em seguida, manter as condições para as reações D-He3. Uma baixa taxa de fusão pode indicar que as reações D-D não estão ocorrendo suficientemente.
 
 Aqui está o histórico recente das métricas de simulação, do mais antigo para o mais novo:
 {{#each history}}
-- Snapshot em: {{{simulationDurationSeconds}}}s | Temp: {{{relativeTemperature}}} | Confinamento: {{{confinement}}} | Taxa de Fusão: {{{fusionRate}}} f/s | Contagem de Partículas: {{{numParticles}}} | Energia Total: {{{totalEnergyGenerated}}} MeV | Energia Cinética Média: {{{averageKineticEnergy}}} (unidade arbitrária)
+- Snapshot em: {{{simulationDurationSeconds}}}s | Temp: {{{relativeTemperature}}} | Confinamento: {{{confinement}}} | Taxa de Fusão: {{{fusionRate}}} f/s | Contagem de Partículas: {{{numParticles}}} | Energia Total: {{{totalEnergyGenerated}}} MeV
 {{/each}}
 
-Com base neste histórico, analise as tendências. Por exemplo, se um aumento na temperatura levou a uma taxa de fusão maior, recomende novos aumentos, **explicando o impacto positivo observado na taxa de fusão ou energia total**. Se levou à instabilidade (por exemplo, menor contagem de partículas sem muito aumento na fusão), recomende uma diminuição ou confinamento mais forte, **justificando com o impacto negativo observado**. Forneça uma recomendação para a temperatura relativa e a força de confinamento.
-
-Considere o seguinte:
-- Temperaturas mais altas geralmente levam a maior energia de colisão, aumentando a probabilidade de superar a barreira de Coulomb, mas muito altas podem fazer com que as partículas escapem do confinamento mais facilmente.
-- O confinamento mais forte mantém as partículas mais densas, aumentando a frequência de colisão, mas o confinamento excessivo pode levar a instabilidades ou simplesmente impedir o movimento necessário das partículas para uma interação ideal.
-- Uma taxa de fusão saudável implica um bom equilíbrio entre temperatura e confinamento.
-
-Forneça sua recomendação no formato JSON especificado. Cada recomendação deve incluir uma diretriz clara de 'increase', 'decrease' ou 'maintain', juntamente com uma razão concisa baseada nas tendências observadas, **mencionando explicitamente as mudanças numéricas na taxa de fusão ou energia total se elas influenciarem sua decisão**. Além disso, forneça uma visão geral ou uma recomendação mais detalhada.`,
+Forneça sua recomendação no formato JSON especificado. Cada recomendação deve incluir uma diretriz clara ('increase', 'decrease' ou 'maintain') e uma razão concisa baseada nas tendendas observadas no modo atual.`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(

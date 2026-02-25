@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getAIConfigurationSuggestion } from "@/lib/actions";
 import type { PlasmaOptimizationSuggestionOutput } from "@/ai/flows/plasma-optimization-suggestion";
+import type { ReactionMode } from "@/lib/simulation-types";
 
 interface TelemetrySnapshot {
   simulationDurationSeconds: number;
@@ -18,7 +19,7 @@ interface TelemetrySnapshot {
   fusionRate: number;
   totalEnergyGenerated: number;
   numParticles: number;
-  averageKineticEnergy?: number; // Adicionado o campo de energia cinética média (opcional, pois pode não estar sempre presente no histórico antigo)
+  averageKineticEnergy?: number;
 }
 
 interface AIAssistantProps {
@@ -26,6 +27,7 @@ interface AIAssistantProps {
   settings: {
     temperature: number;
     confinement: number;
+    reactionMode: ReactionMode;
   };
   onTemperatureChange: (value: number) => void;
   onConfinementChange: (value: number) => void;
@@ -73,11 +75,12 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
       try {
         const result = await getAIConfigurationSuggestion({
           history: currentHistory,
+          reactionMode: currentSettings.reactionMode,
         });
         currentSetSuggestion(result);
 
-        const tempAdjustment = 5; // Alterado de 10 para 5
-        const confinementAdjustment = 0.05; // Alterado de 0.1 para 0.05
+        const tempAdjustment = 5;
+        const confinementAdjustment = 0.05;
 
         let newTemp = currentSettings.temperature;
         if (result.temperatureRecommendation === 'increase') {
@@ -137,6 +140,7 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
       }
       const result = await getAIConfigurationSuggestion({
         history: telemetryHistory,
+        reactionMode: settings.reactionMode,
       });
       setSuggestion(result);
     } catch (error) {
