@@ -1,6 +1,6 @@
 "use client";
 
-import { Gauge, Zap, Activity, TrendingDown, Star, Download, Shield, Target } from "lucide-react";
+import { Gauge, Zap, Activity, TrendingDown, Star, Download, Shield, Target, Waves } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ interface TelemetryPanelProps {
     magneticSafetyFactorQ: number;
     wallIntegrity: number;
     aiReward: number;
+    fractalDimensionD: number;
   };
   telemetryHistory: TelemetrySnapshot[];
 }
@@ -109,12 +110,10 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
         return 'ok';
     };
 
-    const getKAMStatus = (q_mag: number) => {
-        const phi = 1.618;
-        const diff = Math.abs(q_mag - phi);
-        if (diff < 0.1) return 'ok';
-        if (diff < 0.3) return 'warning';
-        return 'danger';
+    const getFractalStatus = (d: number) => {
+        if (d > 1.25) return 'danger';
+        if (d > 1.10) return 'warning';
+        return 'ok';
     };
 
   return (
@@ -146,13 +145,6 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
             status={getTempStatus(telemetry.relativeTemperature)}
         />
         <TelemetryItem 
-            icon={<Zap className="h-3 w-3" />}
-            label="Energia Acumulada"
-            value={telemetry.totalEnergyGenerated.toFixed(1)}
-            unit="MeV"
-            colorClass="text-yellow-500"
-        />
-        <TelemetryItem 
             icon={<TrendingDown className="h-3 w-3" />}
             label="Expoente Lyapunov (λ)"
             value={telemetry.lyapunovExponent.toFixed(3)}
@@ -162,12 +154,21 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
             historyKey="lyapunovExponent"
         />
         <TelemetryItem 
+            icon={<Waves className="h-3 w-3" />}
+            label="Dimensão Fractal (D)"
+            value={telemetry.fractalDimensionD.toFixed(3)}
+            unit="Borda"
+            colorClass="text-cyan-400"
+            status={getFractalStatus(telemetry.fractalDimensionD)}
+            history={telemetryHistory}
+            historyKey="fractalDimensionD"
+        />
+        <TelemetryItem 
             icon={<Star className="h-3 w-3" />}
             label="Segurança Magnética (q)"
             value={telemetry.magneticSafetyFactorQ.toFixed(3)}
             unit="φ=1.618"
             colorClass="text-amber-400"
-            status={getKAMStatus(telemetry.magneticSafetyFactorQ)}
             history={telemetryHistory}
             historyKey="magneticSafetyFactorQ"
         />

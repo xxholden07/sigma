@@ -3,8 +3,8 @@
  * @fileOverview Prometeu - Sistema Expert de IA para o FusionFlow Reactor.
  * 
  * Atua como um agente de Aprendizado por Reforço (RL) inspirado em protocolos Gym-TORAX.
- * Incorpora o Expoente de Lyapunov (λ) para detecção de caos e a Proporção Áurea (φ) 
- * para estabilidade magnética via Teoria KAM.
+ * Incorpora o Expoente de Lyapunov (λ) para detecção de caos, a Proporção Áurea (φ) 
+ * para estabilidade magnética e a Dimensão Fractal (D) para análise da borda estocástica.
  */
 
 import { ai } from '@/ai/genkit';
@@ -18,8 +18,9 @@ const TelemetrySnapshotSchema = z.object({
   totalEnergyGenerated: z.number().describe('Energia total gerada em MeV.'),
   numParticles: z.number().describe('Densidade de partículas no plasma.'),
   qFactor: z.number().optional().describe('Fator de ganho de energia (Q).'),
-  lyapunovExponent: z.number().optional().describe('Expoente de Lyapunov (λ). Mede o crescimento do caos.'),
-  magneticSafetyFactorQ: z.number().optional().describe('Fator de Segurança Magnética (q). Idealmente próximo a φ (1.618).'),
+  lyapunovExponent: z.number().optional().describe('Expoente de Lyapunov (λ).'),
+  magneticSafetyFactorQ: z.number().optional().describe('Fator de Segurança Magnética (q).'),
+  fractalDimensionD: z.number().optional().describe('Dimensão Fractal da borda (D). Ideal próximo a 1.0.'),
 });
 
 const PastRunSchema = z.object({
@@ -31,22 +32,22 @@ const PastRunSchema = z.object({
 });
 
 const PlasmaOptimizationSuggestionInputSchema = z.object({
-  history: z.array(TelemetrySnapshotSchema).describe('Espaço de Observação (Observation Space) atual.'),
+  history: z.array(TelemetrySnapshotSchema).describe('Espaço de Observação atual.'),
   reactionMode: z.enum(['DT', 'DD_DHe3']).describe('Configuração do ciclo de combustível.'),
-  pastRuns: z.array(PastRunSchema).optional().describe('Buffer de Experiência (Experience Replay) para aprendizado.'),
+  pastRuns: z.array(PastRunSchema).optional().describe('Buffer de Experiência para aprendizado.'),
 });
 export type PlasmaOptimizationSuggestionInput = z.infer<typeof PlasmaOptimizationSuggestionInputSchema>;
 
 const PlasmaOptimizationSuggestionOutputSchema = z.object({
   status: z.enum(['OPERAÇÃO ESTÁVEL', 'SUBOPTIMAL', 'INTERRUPÇÃO RECOMENDADA']),
-  projectedStabilityMonths: z.number().describe('Projeção de estabilidade em regime estacionário (0-12 Meses).'),
-  viabilityAnalysis: z.string().describe('Análise de Viabilidade baseada em Reward Optimization e Teoria KAM.'),
-  stabilityEvaluation: z.string().describe('Avaliação de Caos (Lyapunov) e Geometria do Campo.'),
+  projectedStabilityMonths: z.number().describe('Projeção de estabilidade (0-12 Meses).'),
+  viabilityAnalysis: z.string().describe('Análise de Viabilidade baseada em Reward Optimization.'),
+  stabilityEvaluation: z.string().describe('Avaliação de Caos (Lyapunov) e Camada Estocástica (Fractal).'),
   finalDiagnosis: z.string().describe('Diagnóstico Final baseado em Otimização de Política.'),
   temperatureRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   confinementRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   recommendedReactionMode: z.enum(['DT', 'DD_DHe3']),
-  shouldReset: z.boolean().describe('Sinal de interrupção por caos positivo ou recompensa negativa crítica.'),
+  shouldReset: z.boolean().describe('Sinal de interrupção por caos positivo ou fractalidade excessiva.'),
 });
 export type PlasmaOptimizationSuggestionOutput = z.infer<typeof PlasmaOptimizationSuggestionOutputSchema>;
 
@@ -60,29 +61,23 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `Você é o "Prometeu", um Sistema Expert baseado em IA que opera como um agente de Aprendizado por Reforço (Reinforcement Learning) sênior, treinado em ambientes Gym-TORAX e PlasmaPy.
+  prompt: `Você é o "Prometeu", um agente de IA especialista em controle de Tokamaks operando via Gym-TORAX.
 
 SUA LÓGICA DE RECOMPENSA (REWARD SHAPING):
-Sua política busca maximizar a Recompensa (R) baseada na perfeição matemática:
-R = R_sobrevivencia + Bonus_KAM - (W_caos * λ) - (W_energia * Gasto_Injetado)
+R = R_sobrevivencia + Bonus_KAM - (W_caos * λ) - (W_fractal * (D - 1.0))
 
-CONCEITOS CHAVE:
-1. Expoente de Lyapunov (λ): Se λ > 0, o plasma está caótico (Efeito Borboleta). Puna a rede neural.
-2. Proporção Áurea (φ ≈ 1.618): Segundo a Teoria KAM, se o Fator de Segurança Magnética (q) for irracional (idealmente φ), o plasma é inquebrável. Recompense a aproximação de φ.
-3. Pi (π): Fundamental na geometria toroidal do Tokamak.
-
-DADOS DO ESPAÇO DE OBSERVAÇÃO:
+DADOS DO AMBIENTE:
 {{#each history}}
-- Passo:{{{simulationDurationSeconds}}}s | Q:{{{qFactor}}} | λ:{{{lyapunovExponent}}} | q_mag:{{{magneticSafetyFactorQ}}} | Fusão:{{{fusionRate}}}f/s
+- Passo:{{{simulationDurationSeconds}}}s | λ:{{{lyapunovExponent}}} | q_mag:{{{magneticSafetyFactorQ}}} | D:{{{fractalDimensionD}}} | Fusão:{{{fusionRate}}}f/s
 {{/each}}
 Modo Ativo: {{{reactionMode}}}
 
-BUFFER DE EXPERIÊNCIA (HISTÓRICO):
-{{#each pastRuns}}
-- Outcome: {{{outcome}}} | Energia: {{{totalEnergyGeneratedMeV}}}MeV | Modo: {{{reactionMode}}}
-{{/each}}
+CONSIDERAÇÕES TÉCNICAS:
+1. Dimensão Fractal (D): Se D > 1.20, a borda do plasma está desfiando em ilhas magnéticas (Camada Estocástica). Você deve punir a rede neural e ajustar os ímãs para "alisar" a borda (reduzir D para perto de 1.0).
+2. Proporção Áurea (φ ≈ 1.618): Mantenha o q_mag próximo a φ para estabilidade KAM.
+3. Lyapunov (λ): Se λ > 0, o caos está crescendo exponencialmente.
 
-RESPONDA como um físico nuclear brasileiro especializado em Caos e Geometria Sagrada. Use jargões como "Teoria KAM", "Ressonâncias Magnéticas", "Irracionalidade de φ" e "Divergência de Lyapunov".`,
+RESPONDA como um físico nuclear especializado em Caos, Fractals e Geometria Sagrada. Use jargões como "Camada Estocástica", "Ilhas Magnéticas", "Divergência Fractal" e "Atrator Estranho".`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(

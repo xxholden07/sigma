@@ -23,6 +23,7 @@ interface SimulationCanvasProps {
   };
   qFactor: number;
   magneticSafetyFactorQ: number;
+  fractalDimensionD: number;
 }
 
 export function SimulationCanvas({ 
@@ -30,7 +31,8 @@ export function SimulationCanvas({
   getFlashes, 
   settings, 
   qFactor, 
-  magneticSafetyFactorQ 
+  magneticSafetyFactorQ,
+  fractalDimensionD
 }: SimulationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -60,15 +62,12 @@ export function SimulationCanvas({
       const centerX = width / 2;
       const centerY = height / 2;
 
-      // Fundo Profundo
       context.fillStyle = "#010409"; 
       context.fillRect(0, 0, width, height);
 
-      // --- 1. RENDERIZAÇÃO DA TEIA MAGNÉTICA (GEOMETRIA KAM / PROPORÇÃO ÁUREA) ---
-      // Baseado na lógica Python: u = q * v (onde q é o fator de segurança magnética)
-      // Projetamos o toroide 3D para 2D
-      const numPoints = 200; // Pontos por "trança" magnética
-      const numStrands = 8;  // Quantidade de feixes de campo
+      // --- 1. RENDERIZAÇÃO DA TEIA MAGNÉTICA (GEOMETRIA KAM + FRACTAL NOISE) ---
+      const numPoints = 150; 
+      const numStrands = 8;  
       const rotationSpeed = frameCount * 0.01;
       
       context.lineWidth = 1 * minScale;
@@ -78,24 +77,25 @@ export function SimulationCanvas({
         const strandOffset = (s / numStrands) * Math.PI * 2;
         context.beginPath();
         
-        // Cor baseada na proximidade com o Fator q Ideal (PHI)
         const qDiff = Math.abs(magneticSafetyFactorQ - PHI);
-        const opacity = Math.max(0.1, (1 - qDiff) * settings.confinement * 0.8);
-        context.strokeStyle = `rgba(255, 215, 0, ${opacity})`;
-        context.shadowBlur = (1 - qDiff) * 10 * minScale;
-        context.shadowColor = "gold";
-
+        const baseOpacity = Math.max(0.1, (1 - qDiff) * settings.confinement * 0.8);
+        
+        // Efeito visual de "franjamento" fractal na teia
+        const fractalNoise = (fractalDimensionD - 1.0) * 15;
+        context.strokeStyle = `rgba(255, 215, 0, ${baseOpacity})`;
+        
         for (let i = 0; i < numPoints; i++) {
-          const v = (i / numPoints) * Math.PI * 10; // Poloidal
-          const u = magneticSafetyFactorQ * v + strandOffset + rotationSpeed; // Toroidal (u = q * v)
+          const v = (i / numPoints) * Math.PI * 10; 
+          const u = magneticSafetyFactorQ * v + strandOffset + rotationSpeed;
           
-          // Fórmulas do Toroide 3D
-          const r_eff = R_MINOR * (0.8 + Math.sin(frameCount * 0.02) * 0.05); // Pulsação leve
+          // Adicionando instabilidade visual baseada na dimensão fractal
+          const noise = fractalNoise > 0 ? (Math.random() - 0.5) * fractalNoise : 0;
+          const r_eff = (R_MINOR + noise * 0.01) * (0.8 + Math.sin(frameCount * 0.02) * 0.05);
+          
           const x3d = (R_MAJOR + r_eff * Math.cos(v)) * Math.cos(u);
           const y3d = (R_MAJOR + r_eff * Math.cos(v)) * Math.sin(u);
           const z3d = r_eff * Math.sin(v);
 
-          // Projeção Simples 3D para 2D (Isometric-ish)
           const canvasX = centerX + (x3d * 50 * minScale);
           const canvasY = centerY + (y3d * 30 * minScale) - (z3d * 20 * minScale);
 
@@ -104,9 +104,8 @@ export function SimulationCanvas({
         }
         context.stroke();
       }
-      context.shadowBlur = 0;
 
-      // --- 2. PAREDE DO REATOR (BLINDAGEM TRANSLÚCIDA) ---
+      // --- 2. PAREDE DO REATOR ---
       context.strokeStyle = "rgba(59, 130, 246, 0.15)";
       context.lineWidth = 2 * minScale;
       context.beginPath();
@@ -122,7 +121,6 @@ export function SimulationCanvas({
         const px = p.x * scaleX;
         const py = p.y * scaleY;
 
-        // Rastro cinético
         const trailLen = (settings.temperature / 100) * 5;
         const gradient = context.createLinearGradient(px, py, px - p.vx * trailLen, py - p.vy * trailLen);
         gradient.addColorStop(0, color);
@@ -157,26 +155,18 @@ export function SimulationCanvas({
         context.fillStyle = flashGradient;
         context.fillRect(0, 0, width, height);
 
-        context.shadowBlur = 15 * minScale;
-        context.shadowColor = "white";
         context.fillStyle = `rgba(255, 255, 255, ${f.opacity})`;
         context.beginPath();
         context.arc(fx, fy, f.radius * minScale, 0, 2 * Math.PI);
         context.fill();
-        context.shadowBlur = 0;
       });
-
-      if (qFactor > 1.0) {
-        context.fillStyle = "rgba(34, 197, 94, 0.03)";
-        context.fillRect(0, 0, width, height);
-      }
 
       animationFrameId = requestAnimationFrame(render);
     };
 
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [getParticles, getFlashes, settings, qFactor, magneticSafetyFactorQ]);
+  }, [getParticles, getFlashes, settings, qFactor, magneticSafetyFactorQ, fractalDimensionD]);
 
   return (
     <canvas 

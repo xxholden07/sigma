@@ -46,4 +46,5 @@ export interface TelemetrySnapshot {
   magneticSafetyFactorQ: number;
   aiReward: number;
   wallIntegrity: number;
+  fractalDimensionD: number; // Dimensão fractal da borda (D)
 }

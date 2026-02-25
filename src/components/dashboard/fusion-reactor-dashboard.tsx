@@ -60,7 +60,6 @@ export function FusionReactorDashboard() {
   const [telemetry, setTelemetry] = useState({
     totalEnergyGenerated: 0,
     particleCount: INITIAL_PARTICLE_COUNT,
-    simulationDuration: 0,
     fusionRate: 0,
     relativeTemperature: INITIAL_TEMPERATURE,
     fusionEfficiency: 0,
@@ -70,6 +69,7 @@ export function FusionReactorDashboard() {
     magneticSafetyFactorQ: 1.0,
     wallIntegrity: 100,
     aiReward: 0,
+    fractalDimensionD: 1.0,
   });
   
   const [peakFusionRate, setPeakFusionRate] = useState(0);
@@ -153,7 +153,6 @@ export function FusionReactorDashboard() {
     setTelemetry({
       totalEnergyGenerated: 0,
       particleCount: newSettings.initialParticleCount,
-      simulationDuration: 0,
       fusionRate: 0,
       relativeTemperature: INITIAL_TEMPERATURE,
       fusionEfficiency: 0,
@@ -163,6 +162,7 @@ export function FusionReactorDashboard() {
       magneticSafetyFactorQ: 1.0,
       wallIntegrity: 100,
       aiReward: 0,
+      fractalDimensionD: 1.0,
     });
     
     simulationTimeStartRef.current = performance.now();
@@ -187,7 +187,6 @@ export function FusionReactorDashboard() {
           variant: "destructive",
         });
         
-        // Efeito físico imediato
         simulationStateRef.current.particles.forEach(p => {
           p.vx += (Math.random() - 0.5) * 10;
           p.vy += (Math.random() - 0.5) * 10;
@@ -252,7 +251,6 @@ export function FusionReactorDashboard() {
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
       const { confinement, energyThreshold, reactionMode, temperature } = settings;
 
-      // Aplicar penalidade de degradacao
       const effectiveConfinement = Math.max(0, confinement - confinementPenalty);
 
       let sumVx = 0, sumVy = 0;
@@ -374,7 +372,11 @@ export function FusionReactorDashboard() {
             const lyapunov = parseFloat(rawLyapunov.toFixed(3));
             const magSafetyQ = parseFloat((1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50))).toFixed(3));
 
-            // Calculo de Dano por Neutrons (Apenas ciclo D-T)
+            // Cálculo da Dimensão Fractal (D) simulada baseado no caos e q
+            // D = 1.0 (Liso) + fator de turbulência
+            const fractalTurbulence = Math.max(0, lyapunov * 0.5) + (Math.abs(magSafetyQ - PHI) * 0.3);
+            const dFactor = 1.0 + Math.min(0.9, fractalTurbulence);
+
             let newWallIntegrity = prev.wallIntegrity;
             if (settings.reactionMode === 'DT' && newFusionRate > 5) {
                 newWallIntegrity = Math.max(0, prev.wallIntegrity - (newFusionRate * 0.01));
@@ -384,12 +386,14 @@ export function FusionReactorDashboard() {
                 }
             }
 
-            // Calculo de Recompensa IA (Reward Shaping)
+            // Calculo de Recompensa IA (Reward Shaping Avançado)
             const kamBonus = Math.exp(-Math.abs(magSafetyQ - PHI)) * 5;
             const chaosPenalty = lyapunov > 0 ? lyapunov * 10 : 0;
+            const fractalPenalty = (dFactor - 1.0) * 20; // Punição severa para bordas desfiadas
             const survivalReward = 1.0;
             const energyPenalty = (settings.temperature * settings.confinement * 0.02);
-            const currentReward = survivalReward + kamBonus - chaosPenalty - energyPenalty;
+            
+            const currentReward = survivalReward + kamBonus - chaosPenalty - fractalPenalty - energyPenalty;
 
             setPeakFusionRate(pfr => Math.max(pfr, newFusionRate));
 
@@ -403,7 +407,8 @@ export function FusionReactorDashboard() {
                 lyapunovExponent: lyapunov,
                 magneticSafetyFactorQ: magSafetyQ,
                 wallIntegrity: newWallIntegrity,
-                aiReward: currentReward
+                aiReward: currentReward,
+                fractalDimensionD: dFactor
             };
         });
     }, 200);
@@ -425,7 +430,8 @@ export function FusionReactorDashboard() {
                 lyapunovExponent: current.lyapunovExponent,
                 magneticSafetyFactorQ: current.magneticSafetyFactorQ,
                 aiReward: current.aiReward,
-                wallIntegrity: current.wallIntegrity
+                wallIntegrity: current.wallIntegrity,
+                fractalDimensionD: current.fractalDimensionD
             };
             setTelemetryHistory(prev => [...prev, snapshot].slice(-30));
             return current;
@@ -445,14 +451,6 @@ export function FusionReactorDashboard() {
           </div>
           
           <div className="ml-auto flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end gap-0.5 px-3 py-1 rounded-md border bg-slate-900/50">
-              <span className="text-[8px] uppercase text-muted-foreground font-bold">Episodes RL</span>
-              <div className="flex items-center gap-1">
-                <Microscope className="h-3 w-3 text-primary" />
-                <span className="text-xs font-mono font-bold text-primary">{runs?.length || 0}</span>
-              </div>
-            </div>
-
             <Badge variant={telemetry.qFactor >= 1.0 ? "default" : "outline"} className={`hidden sm:flex h-8 gap-2 border-primary/20 transition-all ${telemetry.qFactor >= 5.0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : ''}`}>
               <Zap className={`h-3 w-3 ${telemetry.qFactor >= 5.0 ? "text-amber-400 animate-bounce" : telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary"}`} />
               {telemetry.qFactor >= 5.0 ? "IGNIÇÃO PLENA (Q > 5)" : telemetry.qFactor >= 1.0 ? "BREAKEVEN (Q > 1)" : "EXPERIMENTAL"}
@@ -521,10 +519,10 @@ export function FusionReactorDashboard() {
               <div className="relative aspect-video w-full max-w-[1000px] overflow-hidden rounded-2xl border border-primary/30 bg-black shadow-[0_0_80px_-20px_rgba(59,130,246,0.6)] ring-1 ring-white/10">
                 {!isSimulating && (
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md gap-4">
-                    <div className="flex flex-col items-center gap-2 text-center animate-in fade-in zoom-in duration-700">
+                    <div className="flex flex-col items-center gap-2 text-center">
                       <ShieldAlert className="h-16 w-16 text-primary/40 mb-2 animate-pulse" />
-                      <h2 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter shadow-primary/20 drop-shadow-2xl">Aguardando Pulso</h2>
-                      <p className="text-sm text-muted-foreground max-w-md italic">Defina a política inicial de controle e dispare a ignição para iniciar o treinamento do agente.</p>
+                      <h2 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">Aguardando Pulso</h2>
+                      <p className="text-sm text-muted-foreground max-w-md italic">Aguardando gatilho de ignição (Manual ou AUTO).</p>
                     </div>
                     <Button size="lg" onClick={handleStartIgnition} className="h-16 px-10 text-xl font-bold gap-4 shadow-[0_0_40px_-10px_rgba(59,130,246,0.8)] group hover:scale-105 transition-transform">
                       <Play className="h-7 w-7 fill-current group-hover:scale-110 transition-transform" />
@@ -546,16 +544,8 @@ export function FusionReactorDashboard() {
                     settings={settings}
                     qFactor={telemetry.qFactor}
                     magneticSafetyFactorQ={telemetry.magneticSafetyFactorQ}
+                    fractalDimensionD={telemetry.fractalDimensionD}
                 />
-                <div className="absolute top-6 right-6 flex flex-col items-end gap-2 pointer-events-none">
-                  <div className={`backdrop-blur-md border p-3 rounded-lg flex flex-col items-end transition-all duration-500 ${telemetry.qFactor >= 1.0 ? 'bg-green-500/10 border-green-500/30' : 'bg-black/60 border-primary/20'}`}>
-                    <span className="text-[10px] text-primary font-mono block mb-1">PRODUTO TRIPLO (Q)</span>
-                    <div className="text-2xl font-mono font-bold text-white flex items-center gap-2">
-                      {telemetry.qFactor.toFixed(2)}
-                      {telemetry.qFactor >= 1.0 && <Zap className="h-5 w-5 text-green-400 animate-pulse" />}
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </SidebarInset>
