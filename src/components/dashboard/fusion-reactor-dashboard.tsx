@@ -24,7 +24,8 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Target, Microscope, Zap, ShieldAlert } from "lucide-react";
+import { Microscope, Zap, ShieldAlert, Play, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   const particles: Particle[] = [];
@@ -45,6 +46,7 @@ export function FusionReactorDashboard() {
   const { firestore, auth } = useFirebase();
   const { user, isUserLoading } = useUser();
 
+  const [isSimulating, setIsSimulating] = useState(false);
   const [settings, setSettings] = useState({
     temperature: INITIAL_TEMPERATURE,
     confinement: INITIAL_CONFINEMENT,
@@ -114,6 +116,7 @@ export function FusionReactorDashboard() {
 
   const resetSimulation = useCallback((newMode?: ReactionMode) => {
     handleSaveSimulation();
+    setIsSimulating(false);
 
     const reactionMode = typeof newMode === 'string' ? newMode : settings.reactionMode;
 
@@ -152,6 +155,12 @@ export function FusionReactorDashboard() {
     lastFusionRateUpdateTime.current = performance.now();
   }, [handleSaveSimulation, settings]);
 
+  const handleStartIgnition = useCallback(() => {
+    setIsSimulating(true);
+    simulationTimeStartRef.current = performance.now();
+    lastFusionRateUpdateTime.current = performance.now();
+  }, []);
+
   const handleTemperatureChange = useCallback((newTemp: number) => {
     setSettings(s => ({...s, temperature: newTemp}));
   }, []);
@@ -176,6 +185,11 @@ export function FusionReactorDashboard() {
     let animationFrameId: number;
     
     const gameLoop = () => {
+      if (!isSimulating) {
+        animationFrameId = requestAnimationFrame(gameLoop);
+        return;
+      }
+
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
       const { confinement, energyThreshold, reactionMode, temperature } = settings;
 
@@ -265,10 +279,12 @@ export function FusionReactorDashboard() {
 
     animationFrameId = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [settings]);
+  }, [settings, isSimulating]);
   
   useEffect(() => {
     const intervalId = setInterval(() => {
+        if (!isSimulating) return;
+
         const currentTime = performance.now();
         const particles = simulationStateRef.current.particles;
 
@@ -279,7 +295,6 @@ export function FusionReactorDashboard() {
             if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
                 newFusionRate = simulationStateRef.current.fusionsInLastSecond;
                 
-                // CÁLCULO DE Q INSTANTÂNEO (Pout / Pin)
                 const energyInPerSecond = (settings.temperature * settings.confinement * settings.initialParticleCount * 0.05) + 1;
                 const energyOutPerSecond = newFusionRate * (settings.reactionMode === 'DT' ? DT_FUSION_ENERGY_MEV : DHE3_FUSION_ENERGY_MEV);
                 
@@ -308,10 +323,12 @@ export function FusionReactorDashboard() {
         });
     }, 200);
     return () => clearInterval(intervalId);
-  }, [settings]);
+  }, [settings, isSimulating]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
+        if (!isSimulating) return;
+
         setTelemetry(current => {
             const snapshot = {
                 simulationDurationSeconds: parseFloat(current.simulationDuration.toFixed(1)),
@@ -329,7 +346,7 @@ export function FusionReactorDashboard() {
         });
     }, 500);
     return () => clearInterval(intervalId);
-  }, [settings.temperature, settings.confinement]);
+  }, [settings.temperature, settings.confinement, isSimulating]);
 
   return (
     <SidebarProvider defaultOpen>
@@ -374,6 +391,8 @@ export function FusionReactorDashboard() {
                     onInitialParticleCountChange={handleInitialParticleCountChange}
                     onReactionModeChange={handleReactionModeChange}
                     onReset={() => resetSimulation()}
+                    isSimulating={isSimulating}
+                    onStartIgnition={handleStartIgnition}
                   />
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -389,6 +408,8 @@ export function FusionReactorDashboard() {
                     onConfinementChange={handleConfinementChange}
                     onReactionModeChange={handleReactionModeChange}
                     onReset={() => resetSimulation()}
+                    onStartIgnition={handleStartIgnition}
+                    isSimulating={isSimulating}
                   />
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -411,6 +432,19 @@ export function FusionReactorDashboard() {
           <SidebarInset className="bg-slate-950">
             <div className="relative flex h-full w-full items-center justify-center p-4">
               <div className="relative aspect-video w-full max-w-[1000px] overflow-hidden rounded-2xl border border-primary/30 bg-black shadow-[0_0_50px_-12px_rgba(59,130,246,0.5)] ring-1 ring-white/5">
+                {!isSimulating && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm gap-4">
+                    <div className="flex flex-col items-center gap-2 text-center animate-in fade-in zoom-in duration-500">
+                      <ShieldAlert className="h-12 w-12 text-primary/60 mb-2" />
+                      <h2 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">Pronto para Ignição</h2>
+                      <p className="text-sm text-muted-foreground max-w-md italic">Aguardando definição de variáveis e comando de ignição para iniciar o pulso de plasma.</p>
+                    </div>
+                    <Button size="lg" onClick={handleStartIgnition} className="h-14 px-8 text-lg font-bold gap-3 shadow-[0_0_30px_-5px_rgba(59,130,246,0.6)] group">
+                      <Play className="h-6 w-6 fill-current group-hover:scale-110 transition-transform" />
+                      INICIAR IGNIÇÃO
+                    </Button>
+                  </div>
+                )}
                 <SimulationCanvas 
                     getParticles={() => simulationStateRef.current.particles}
                     getFlashes={() => simulationStateRef.current.flashes}

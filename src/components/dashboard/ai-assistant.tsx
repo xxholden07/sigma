@@ -2,9 +2,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target, TrendingUp, Info } from "lucide-react";
+import { Bot, Loader2, Zap, Activity, ShieldAlert, Target, TrendingUp, Info } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -38,6 +37,8 @@ interface AIAssistantProps {
   onConfinementChange: (value: number) => void;
   onReactionModeChange: (mode: ReactionMode) => void;
   onReset: () => void;
+  onStartIgnition: () => void;
+  isSimulating: boolean;
 }
 
 export function AIAssistant({ 
@@ -47,7 +48,9 @@ export function AIAssistant({
   onTemperatureChange, 
   onConfinementChange,
   onReactionModeChange,
-  onReset
+  onReset,
+  onStartIgnition,
+  isSimulating
 }: AIAssistantProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<PlasmaOptimizationSuggestionOutput | null>(null);
@@ -62,9 +65,11 @@ export function AIAssistant({
     onConfinementChange,
     onReactionModeChange,
     onReset,
+    onStartIgnition,
     settings,
     telemetryHistory,
-    pastRuns
+    pastRuns,
+    isSimulating
   });
 
   useEffect(() => {
@@ -73,11 +78,13 @@ export function AIAssistant({
       onConfinementChange,
       onReactionModeChange,
       onReset,
+      onStartIgnition,
       settings,
       telemetryHistory,
-      pastRuns
+      pastRuns,
+      isSimulating
     };
-  }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, settings, telemetryHistory, pastRuns]);
+  }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition, settings, telemetryHistory, pastRuns, isSimulating]);
   
   useEffect(() => {
     if (!isAutoPilotOn) return;
@@ -90,8 +97,16 @@ export function AIAssistant({
         onTemperatureChange: currentOnTempChange, 
         onConfinementChange: currentOnConfChange,
         onReactionModeChange: currentOnModeChange,
-        onReset: currentOnReset
+        onReset: currentOnReset,
+        onStartIgnition: currentOnStart,
+        isSimulating: currentIsSimulating
       } = handlersRef.current;
+
+      // Se não estiver simulando, a IA tenta iniciar a ignição se o modo AUTO estiver ligado
+      if (!currentIsSimulating) {
+        currentOnStart();
+        return;
+      }
 
       if (currentHistory.length < 5) return;
 
@@ -118,6 +133,7 @@ export function AIAssistant({
             variant: "destructive",
           });
           currentOnReset();
+          // O próximo ciclo do intervalo cuidará do reinício da ignição
           return;
         }
 
@@ -146,7 +162,7 @@ export function AIAssistant({
         }
 
       } catch (error) {
-        // Erros de AI são logados centralmente, sem necessidade de console.error aqui
+        // Erro global
       } finally {
         setIsLoading(false);
       }
@@ -155,33 +171,6 @@ export function AIAssistant({
     const intervalId = setInterval(runAutoPilotCycle, 5000);
     return () => clearInterval(intervalId);
   }, [isAutoPilotOn, toast]);
-
-  const handleGetSuggestion = async () => {
-    setIsLoading(true);
-    try {
-      if (telemetryHistory.length < 3) {
-        toast({ title: "Dados Insuficientes", description: "O plasma ainda não estabilizou para análise do Prometeu." });
-        setIsLoading(false);
-        return;
-      }
-      const result = await getAIConfigurationSuggestion({
-        history: telemetryHistory.slice(-10),
-        reactionMode: settings.reactionMode,
-        pastRuns: pastRuns.slice(0, 5).map(r => ({
-          outcome: r.outcome,
-          totalEnergyGeneratedMeV: r.totalEnergyGeneratedMeV,
-          initialTemperature: r.initialTemperature,
-          initialConfinement: r.initialConfinement,
-          reactionMode: r.reactionMode,
-        }))
-      });
-      setSuggestion(result);
-    } catch (error) {
-      // Falha tratada por erro global
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const getStatusColor = (status?: string) => {
     if (status === 'OPERAÇÃO ESTÁVEL') return 'text-green-400';
@@ -253,13 +242,6 @@ export function AIAssistant({
           disabled={isLoading && !isAutoPilotOn}
         />
       </div>
-
-      {!isAutoPilotOn && (
-        <Button onClick={handleGetSuggestion} disabled={isLoading} variant="secondary" className="w-full h-9 text-xs font-bold transition-all">
-          {isLoading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <FlaskConical className="mr-2 h-3 w-3" />}
-          SOLICITAR RELATÓRIO CIENTÍFICO
-        </Button>
-      )}
 
       {isAutoPilotOn && isLoading && (
         <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">

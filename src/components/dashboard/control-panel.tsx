@@ -1,7 +1,7 @@
 
 "use client";
 
-import { SlidersHorizontal, Thermometer, Magnet, RotateCcw, Flame, Atom } from "lucide-react";
+import { SlidersHorizontal, Thermometer, Magnet, RotateCcw, Flame, Atom, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -22,6 +22,8 @@ interface ControlPanelProps {
   onInitialParticleCountChange: (value: number) => void;
   onReactionModeChange: (mode: ReactionMode) => void;
   onReset: () => void;
+  onStartIgnition: () => void;
+  isSimulating: boolean;
 }
 
 export function ControlPanel({
@@ -32,6 +34,8 @@ export function ControlPanel({
   onInitialParticleCountChange,
   onReactionModeChange,
   onReset,
+  onStartIgnition,
+  isSimulating,
 }: ControlPanelProps) {
   return (
     <div className="space-y-6">
@@ -44,6 +48,7 @@ export function ControlPanel({
           value={settings.reactionMode}
           onValueChange={(value) => onReactionModeChange(value as ReactionMode)}
           className="grid grid-cols-2 gap-2"
+          disabled={isSimulating}
         >
           <div>
             <RadioGroupItem value="DT" id="dt" className="peer sr-only" />
@@ -118,6 +123,7 @@ export function ControlPanel({
             step={0.5}
             value={[settings.energyThreshold ?? 0]}
             onValueChange={(value) => onEnergyThresholdChange(value[0])}
+            disabled={isSimulating}
           />
         </div>
 
@@ -136,14 +142,24 @@ export function ControlPanel({
             step={10}
             value={[settings.initialParticleCount ?? 0]}
             onValueChange={(value) => onInitialParticleCountChange(value[0])}
+            disabled={isSimulating}
           />
         </div>
       </div>
 
-      <Button variant="outline" size="sm" onClick={() => onReset()} className="w-full h-9 text-xs">
-        <RotateCcw className="mr-2 h-3 w-3" />
-        Reiniciar Reator
-      </Button>
+      <div className="grid gap-2 pt-2">
+        {!isSimulating ? (
+          <Button onClick={onStartIgnition} className="w-full h-11 font-bold gap-2">
+            <Play className="h-4 w-4 fill-current" />
+            INICIAR IGNIÇÃO
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={onReset} className="w-full h-11 font-bold gap-2">
+            <RotateCcw className="h-4 w-4" />
+            ABORTAR / RESET
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
