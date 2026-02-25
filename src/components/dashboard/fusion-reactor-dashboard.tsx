@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -44,19 +45,19 @@ export function FusionReactorDashboard() {
   });
   const [telemetry, setTelemetry] = useState({
     totalEnergyGenerated: 0,
-    particleCount: INITIAL_PARTICLE_COUNT,
+    particleCount: settings.initialParticleCount,
     simulationDuration: 0,
     fusionRate: 0,
-    relativeTemperature: INITIAL_TEMPERATURE,
+    relativeTemperature: settings.temperature,
     fusionEfficiency: 0,
     averageKineticEnergy: 0, // Adicionado ao estado inicial da telemetria
   });
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
   const simulationStateRef = useRef({
-    particles: createInitialParticles(INITIAL_PARTICLE_COUNT),
+    particles: createInitialParticles(settings.initialParticleCount),
     flashes: [] as FusionFlash[],
-    nextParticleId: INITIAL_PARTICLE_COUNT,
+    nextParticleId: settings.initialParticleCount,
     nextFlashId: 0,
     fusionsInLastSecond: 0,
   });
@@ -66,30 +67,33 @@ export function FusionReactorDashboard() {
   const lastFusionRateUpdateTime = useRef(performance.now());
 
   const resetSimulation = useCallback(() => {
-    simulationStateRef.current = {
-        particles: createInitialParticles(INITIAL_PARTICLE_COUNT),
-        flashes: [],
-        nextParticleId: INITIAL_PARTICLE_COUNT,
-        nextFlashId: 0,
-        fusionsInLastSecond: 0,
-    };
-    totalEnergyGeneratedRef.current = 0;
-    setSettings({
+    const newSettings = {
       temperature: INITIAL_TEMPERATURE,
       confinement: INITIAL_CONFINEMENT,
       energyThreshold: ENERGY_THRESHOLD,
       initialParticleCount: INITIAL_PARTICLE_COUNT,
-    });
+    };
+    setSettings(newSettings);
+
+    simulationStateRef.current = {
+        particles: createInitialParticles(newSettings.initialParticleCount),
+        flashes: [],
+        nextParticleId: newSettings.initialParticleCount,
+        nextFlashId: 0,
+        fusionsInLastSecond: 0,
+    };
+    totalEnergyGeneratedRef.current = 0;
+    
     setTelemetryHistory([]);
 
     const initialTelemetry = {
       totalEnergyGenerated: 0,
-      particleCount: INITIAL_PARTICLE_COUNT,
+      particleCount: newSettings.initialParticleCount,
       simulationDuration: 0,
       fusionRate: 0,
-      relativeTemperature: INITIAL_TEMPERATURE,
+      relativeTemperature: newSettings.temperature,
       fusionEfficiency: 0,
-      averageKineticEnergy: 0, // Adicionado ao estado inicial da telemetria no reset
+      averageKineticEnergy: 0,
     };
     setTelemetry(initialTelemetry);
     
@@ -127,6 +131,8 @@ export function FusionReactorDashboard() {
 
   const handleInitialParticleCountChange = useCallback((value: number) => {
     setSettings(s => ({...s, initialParticleCount: value}));
+    // Note: This won't reset the simulation with the new particle count until reset is clicked.
+    // This is intentional to avoid jarring simulation resets while dragging a slider.
   }, []);
 
   useEffect(() => {
@@ -319,3 +325,5 @@ export function FusionReactorDashboard() {
     </SidebarProvider>
   );
 }
+
+    

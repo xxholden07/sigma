@@ -1,6 +1,7 @@
+
 "use client";
 
-import { SlidersHorizontal, Thermometer, Magnet, RotateCcw, Flame, Atom } from "lucide-react"; // Adicionado Flame e Atom
+import { SlidersHorizontal, Thermometer, Magnet, RotateCcw, Flame, Atom } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -10,13 +11,13 @@ interface ControlPanelProps {
   settings: {
     temperature: number;
     confinement: number;
-    energyThreshold: number; // Novo controle
-    initialParticleCount: number; // Novo controle
+    energyThreshold: number;
+    initialParticleCount: number;
   };
   onTemperatureChange: (value: number) => void;
   onConfinementChange: (value: number) => void;
-  onEnergyThresholdChange: (value: number) => void; // Novo handler
-  onInitialParticleCountChange: (value: number) => void; // Novo handler
+  onEnergyThresholdChange: (value: number) => void;
+  onInitialParticleCountChange: (value: number) => void;
   onReset: () => void;
 }
 
@@ -24,8 +25,8 @@ export function ControlPanel({
   settings,
   onTemperatureChange,
   onConfinementChange,
-  onEnergyThresholdChange, // Novo handler
-  onInitialParticleCountChange, // Novo handler
+  onEnergyThresholdChange,
+  onInitialParticleCountChange,
   onReset,
 }: ControlPanelProps) {
   return (
@@ -88,7 +89,9 @@ export function ControlPanel({
               value={[settings.energyThreshold]}
               onValueChange={(value) => onEnergyThresholdChange(value[0])}
             />
-            <span className="text-sm font-semibold w-12 text-right">{settings.energyThreshold.toFixed(1)}</span>
+            <span className="text-sm font-semibold w-12 text-right">
+              {typeof settings.energyThreshold === 'number' ? settings.energyThreshold.toFixed(1) : 'N/A'}
+            </span>
           </div>
         </div>
 
@@ -119,3 +122,5 @@ export function ControlPanel({
     </Card>
   );
 }
+
+    
