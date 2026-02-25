@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Loader2, Zap, Activity, ShieldAlert, Target, TrendingUp, Info } from "lucide-react";
+import { Bot, Loader2, Zap, Activity, ShieldAlert, Target, TrendingUp, Info, BrainCircuit } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -88,19 +87,17 @@ export function AIAssistant({
     };
   }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition, settings, telemetryHistory, pastRuns, isSimulating, isAutoPilotOn]);
   
-  // Efeito para o Piloto Automático assumir o controle da ignição se o reator estiver parado
   useEffect(() => {
     if (isAutoPilotOn && !isSimulating) {
         const timer = setTimeout(() => {
-            const { onTemperatureChange, onConfinementChange, onStartIgnition, settings } = handlersRef.current;
+            const { onTemperatureChange, onConfinementChange, onStartIgnition } = handlersRef.current;
             
-            // Configura parâmetros iniciais "inteligentes" antes de ligar
             onTemperatureChange(120);
             onConfinementChange(0.35);
             
             toast({
-                title: "Prometeu: Iniciando Ignição",
-                description: "IA assumindo controle dos parâmetros iniciais e disparando pulso.",
+                title: "Prometeu (RL): Inicializando Política",
+                description: "Agente de IA iniciando nova iteração de otimização no ambiente.",
             });
             onStartIgnition();
         }, 1500);
@@ -109,7 +106,6 @@ export function AIAssistant({
   }, [isAutoPilotOn, isSimulating, toast]);
 
   useEffect(() => {
-    // A IA monitora continuamente se o reator estiver simulando
     if (!isSimulating) {
       setSuggestion(null);
       return;
@@ -146,12 +142,11 @@ export function AIAssistant({
         
         setSuggestion(result);
 
-        // Somente aplica mudanças se o AUTO estiver ligado
         if (currentIsAutoPilotOn) {
           if (result.shouldReset) {
             toast({
-              title: "Prometeu: Reinício Estratégico",
-              description: result.finalDiagnosis || "Condições suboptimais detectadas. Reiniciando núcleo...",
+              title: "Prometeu: Otimização de Reinício",
+              description: result.finalDiagnosis || "Recompensa negativa detectada. Iterando para nova configuração...",
               variant: "destructive",
             });
             currentOnReset();
@@ -160,14 +155,13 @@ export function AIAssistant({
 
           if (result.recommendedReactionMode !== currentSettings.reactionMode) {
             toast({
-              title: "Prometeu: Alternando Ciclo",
-              description: `Transição estratégica para modo ${result.recommendedReactionMode}.`,
+              title: "Prometeu: Ajuste de Política",
+              description: `Alternando ciclo de combustível para modo ${result.recommendedReactionMode}.`,
             });
             currentOnModeChange(result.recommendedReactionMode);
             return;
           }
 
-          // Ajustes dinâmicos
           const tempStep = 10;
           const confStep = 0.05;
 
@@ -185,13 +179,12 @@ export function AIAssistant({
         }
 
       } catch (error) {
-        // Erro silencioso no monitoramento
+        // Silencioso
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Ciclo de análise para o Gêmeo Digital
     const intervalId = setInterval(runAnalysisCycle, 7000);
     return () => clearInterval(intervalId);
   }, [isSimulating]);
@@ -251,13 +244,13 @@ export function AIAssistant({
         </TooltipProvider>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
+      <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3 shadow-[0_0_15px_-3px_rgba(59,130,246,0.3)]">
         <div className="space-y-0.5">
           <Label htmlFor="autopilot-switch" className="text-xs font-bold flex items-center gap-2 text-primary">
-            <Bot className="h-3 w-3" />
-            PROMETEU (AUTO)
+            <BrainCircuit className="h-3 w-3" />
+            PROMETEU (RL POLICY)
           </Label>
-          <p className="text-[10px] text-muted-foreground italic tracking-tight">IA com autoridade de comando.</p>
+          <p className="text-[10px] text-muted-foreground italic tracking-tight uppercase">Reinforcement Learning Mode</p>
         </div>
         <Switch
           id="autopilot-switch"
@@ -269,7 +262,7 @@ export function AIAssistant({
       {isLoading && (
         <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Analisando Telemetria...</span>
+          <span className="text-[10px] font-bold text-primary uppercase animate-pulse tracking-tighter">Otimizando Política de Controle...</span>
         </div>
       )}
 
@@ -279,9 +272,9 @@ export function AIAssistant({
           
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Relatório Científico</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Relatório Digital Twin</span>
               <Badge variant="outline" className="text-[9px] h-4 uppercase border-primary/30">
-                Modo {settings.reactionMode}
+                Policy Optimized
               </Badge>
             </div>
             <Separator className="bg-primary/10" />
@@ -290,7 +283,7 @@ export function AIAssistant({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">Status IA:</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Reward Status:</p>
                 <div className="flex items-center gap-1.5">
                    <div className={`h-2 w-2 rounded-full animate-pulse ${suggestion.status === 'OPERAÇÃO ESTÁVEL' ? 'bg-green-400' : 'bg-yellow-400'}`} />
                    <p className={`text-[10px] font-black tracking-tight ${getStatusColor(suggestion.status)}`}>
@@ -307,7 +300,7 @@ export function AIAssistant({
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
                 <TrendingUp className="h-3 w-3" />
-                Viabilidade & Produto Triplo:
+                Reward & Lawson Optimization:
               </div>
               <p className="text-[11px] leading-relaxed text-slate-300 italic bg-slate-900/40 p-2 rounded border border-white/5">
                 {suggestion.viabilityAnalysis}
@@ -315,7 +308,7 @@ export function AIAssistant({
             </div>
 
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Estabilidade & Disrupção:</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase">Policy Stability Evaluation:</p>
               <p className="text-[11px] leading-relaxed text-slate-300">
                 {suggestion.stabilityEvaluation}
               </p>
@@ -325,7 +318,7 @@ export function AIAssistant({
               <div className="flex gap-2 items-start">
                 {suggestion.shouldReset ? <ShieldAlert className="h-4 w-4 text-destructive shrink-0 mt-0.5" /> : <Activity className="h-4 w-4 text-primary shrink-0 mt-0.5" />}
                 <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Diagnóstico Final:</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Policy Diagnosis:</p>
                   <p className="text-[11px] font-bold text-foreground leading-snug">
                     {suggestion.finalDiagnosis}
                   </p>
@@ -338,8 +331,8 @@ export function AIAssistant({
 
       {!isSimulating && (
         <div className="rounded-lg border border-dashed border-primary/20 p-4 text-center space-y-2">
-          <p className="text-[10px] text-muted-foreground uppercase font-bold">Aguardando Ignição</p>
-          <p className="text-[11px] text-slate-400 italic">Configure o combustível e as variáveis acima antes de iniciar o pulso.</p>
+          <p className="text-[10px] text-muted-foreground uppercase font-bold">Observation Space: Inativo</p>
+          <p className="text-[11px] text-slate-400 italic">O Agente RL aguarda a ativação do ambiente para iniciar a otimização.</p>
         </div>
       )}
     </div>

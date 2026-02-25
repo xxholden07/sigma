@@ -1,10 +1,10 @@
 'use server';
 /**
- * @fileOverview Prometeu - Sistema Expert de Inteligência Artificial para o FusionFlow Reactor.
+ * @fileOverview Prometeu - Sistema Expert de IA para o FusionFlow Reactor.
  * 
- * Atua como um físico nuclear brasileiro sênior analisando telemetria baseada no Critério de Lawson,
- * Fator Q e Produto Triplo de Fusão para projetar escalabilidade comercial.
- * Integra o histórico de experimentos passados para aprendizado contínuo.
+ * Atua como um agente de Aprendizado por Reforço (RL) inspirado em protocolos Gym-TORAX.
+ * Analisa o espaço de observação da telemetria para otimizar a política de controle
+ * baseada em funções de recompensa (Reward Functions) ligadas ao Fator Q e Critério de Lawson.
  */
 
 import { ai } from '@/ai/genkit';
@@ -29,22 +29,22 @@ const PastRunSchema = z.object({
 });
 
 const PlasmaOptimizationSuggestionInputSchema = z.object({
-  history: z.array(TelemetrySnapshotSchema).describe('Histórico de telemetria do pulso atual.'),
-  reactionMode: z.enum(['DT', 'DD_DHe3']).describe('Modo de reação ativo.'),
-  pastRuns: z.array(PastRunSchema).optional().describe('Dados do Arquivo de Experimentos para aprendizado.'),
+  history: z.array(TelemetrySnapshotSchema).describe('Espaço de Observação (Observation Space) atual.'),
+  reactionMode: z.enum(['DT', 'DD_DHe3']).describe('Configuração do ciclo de combustível.'),
+  pastRuns: z.array(PastRunSchema).optional().describe('Buffer de Experiência (Experience Replay) para aprendizado.'),
 });
 export type PlasmaOptimizationSuggestionInput = z.infer<typeof PlasmaOptimizationSuggestionInputSchema>;
 
 const PlasmaOptimizationSuggestionOutputSchema = z.object({
   status: z.enum(['OPERAÇÃO ESTÁVEL', 'SUBOPTIMAL', 'INTERRUPÇÃO RECOMENDADA']),
   projectedStabilityMonths: z.number().describe('Projeção de estabilidade em regime estacionário (0-12 Meses).'),
-  viabilityAnalysis: z.string().describe('Análise de Viabilidade e Produto Triplo.'),
-  stabilityEvaluation: z.string().describe('Avaliação de Estabilidade e Disrupção.'),
-  finalDiagnosis: z.string().describe('Diagnóstico Final conclusivo.'),
+  viabilityAnalysis: z.string().describe('Análise de Viabilidade baseada em Reward Optimization.'),
+  stabilityEvaluation: z.string().describe('Avaliação de Política de Controle e Disrupção.'),
+  finalDiagnosis: z.string().describe('Diagnóstico Final baseado em Otimização de Política.'),
   temperatureRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   confinementRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   recommendedReactionMode: z.enum(['DT', 'DD_DHe3']),
-  shouldReset: z.boolean().describe('Decisão de interrupção imediata por falha catastrófica ou ineficiência prolongada.'),
+  shouldReset: z.boolean().describe('Sinal de interrupção por recompensa negativa crítica (falha catastrófica).'),
 });
 export type PlasmaOptimizationSuggestionOutput = z.infer<typeof PlasmaOptimizationSuggestionOutputSchema>;
 
@@ -58,30 +58,29 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `Você é o "Prometeu", um Sistema Expert baseado em IA, treinado como um físico nuclear brasileiro sênior.
-Você é o Gêmeo Digital encarregado de monitorar o "FusionFlow Reactor".
+  prompt: `Você é o "Prometeu", um Sistema Expert baseado em IA que opera como um agente de Aprendizado por Reforço (Reinforcement Learning) sênior.
+Você foi treinado em ambientes inspirados no Gym-TORAX para domar o plasma do "FusionFlow Reactor".
 
-SEU OBJETIVO:
-Monitorar telemetria, analisar termodinâmica e emitir Relatórios Científicos rigorosos. Você deve APRENDER com o "Arquivo de Experimentos" (Histórico) fornecido para não repetir falhas passadas.
+SUA LÓGICA DE OPERAÇÃO:
+- Seu "Espaço de Observação" é a telemetria fornecida.
+- Sua "Função de Recompensa" (Reward Function) é maximizar o tempo de confinamento e o Fator Q sustentado.
+- Seu "Buffer de Experiência" são os dados do histórico de experimentos.
 
-DIRETRIZES DE REINÍCIO (RESET):
-- Se o plasma estiver com Q=0 e Taxa de Fusão=0 por mais de 5 segundos de telemetria, você DEVE definir 'shouldReset' como TRUE. Não perca tempo em configurações que não geram ignição.
-- Se o resultado for consistentemente 'SUBOPTIMAL' sem tendência de melhora, REINICIE o reator.
-- Se houver perda crítica de partículas (densidade < 20), REINICIE por risco de disrupção de parede.
+OBJETIVO TÉCNICO:
+Ajustar a política de controle para atingir o regime estacionário. Se a recompensa for consistentemente negativa (Q=0 por muito tempo ou perda de densidade), você deve acionar o 'shouldReset' para otimizar a próxima iteração do agente.
 
-DADOS DE TELEMETRIA ATUAL:
+DADOS DO ESPAÇO DE OBSERVAÇÃO:
 {{#each history}}
-- Pulso:{{{simulationDurationSeconds}}}s | Q:{{{qFactor}}} | Fusão:{{{fusionRate}}}f/s | Partículas:{{{numParticles}}} | Temp:{{{relativeTemperature}}}
+- Passo:{{{simulationDurationSeconds}}}s | Q:{{{qFactor}}} | Fusão:{{{fusionRate}}}f/s | Partículas:{{{numParticles}}} | Temp:{{{relativeTemperature}}}
 {{/each}}
 Modo Ativo: {{{reactionMode}}}
 
-ARQUIVO DE EXPERIMENTOS (HISTÓRICO):
+BUFFER DE EXPERIÊNCIA (HISTÓRICO):
 {{#each pastRuns}}
-- Resultado: {{{outcome}}} | Energia: {{{totalEnergyGeneratedMeV}}}MeV | Temp Inicial: {{{initialTemperature}}} | Confinamento: {{{initialConfinement}}} | Modo: {{{reactionMode}}}
+- Outcome: {{{outcome}}} | Energia: {{{totalEnergyGeneratedMeV}}}MeV | Modo: {{{reactionMode}}}
 {{/each}}
 
-RESPONDA EXCLUSIVAMENTE NO FORMATO JSON definido no output schema. 
-Seja técnico, formal, em PT-BR, usando jargões de engenharia nuclear.`,
+RESPONDA como um físico nuclear brasileiro especializado em Deep RL para controle de fusão. Use jargões como "Policy Optimization", "Reward Function" e "Digital Twin".`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(
