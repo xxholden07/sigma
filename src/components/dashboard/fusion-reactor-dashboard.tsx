@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -20,10 +19,11 @@ import { ControlPanel } from "./control-panel";
 import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { FusionIcon } from "../icons/fusion-icon";
-import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
+import { Target, Microscope } from "lucide-react";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   if (mode === 'DD_DHe3') {
@@ -76,6 +76,13 @@ export function FusionReactorDashboard() {
   const [peakFusionRate, setPeakFusionRate] = useState(0);
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
+  // Busca o número total de tentativas salvas
+  const runsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users', user.uid, 'simulationRuns'), orderBy('createdAt', 'desc'));
+  }, [firestore, user]);
+  const { data: runs } = useCollection<SimulationRun>(runsQuery);
+
   const simulationStateRef = useRef({
     particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode),
     flashes: [] as FusionFlash[],
@@ -118,7 +125,6 @@ export function FusionReactorDashboard() {
   const resetSimulation = useCallback((newMode?: ReactionMode | any) => {
     handleSaveSimulation();
 
-    // Robust check to ensure newMode is a string and not an event object
     const reactionMode = (typeof newMode === 'string') ? (newMode as ReactionMode) : settings.reactionMode;
 
     const newSettings = {
@@ -376,24 +382,37 @@ export function FusionReactorDashboard() {
   return (
     <SidebarProvider defaultOpen>
       <div className="flex h-screen w-full flex-col bg-background">
-        <header className="flex h-14 items-center gap-4 border-b px-4 sm:h-16 sm:px-6">
-          <FusionIcon className="h-7 w-7 text-primary" />
-          <h1 className="font-headline text-xl font-bold tracking-tight sm:text-2xl">FusionFlow Reactor</h1>
+        <header className="flex h-14 items-center gap-4 border-b px-4 sm:h-16 sm:px-6 bg-slate-950/50 backdrop-blur-md sticky top-0 z-50">
+          <FusionIcon className="h-7 w-7 text-primary animate-pulse" />
+          <div className="flex flex-col">
+            <h1 className="font-headline text-lg font-bold tracking-tight sm:text-xl text-primary leading-none">FusionFlow Reactor</h1>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">Quantum Simulation Console</p>
+          </div>
+          
           <div className="ml-auto flex items-center gap-4">
-            <Badge variant={telemetry.fusionEfficiency > 50 ? "default" : "outline"} className="hidden sm:flex">
-              Status: {telemetry.fusionEfficiency > 0 ? "Plasma Ativo" : "Ocioso"}
+            <div className="hidden md:flex flex-col items-end gap-0.5 px-3 py-1 rounded-md border bg-slate-900/50">
+              <span className="text-[8px] uppercase text-muted-foreground font-bold">Total de Tentativas</span>
+              <div className="flex items-center gap-1">
+                <Microscope className="h-3 w-3 text-primary" />
+                <span className="text-xs font-mono font-bold text-primary">{runs?.length || 0}</span>
+              </div>
+            </div>
+
+            <Badge variant={telemetry.fusionEfficiency > 50 ? "default" : "outline"} className="hidden sm:flex h-8 gap-2 border-primary/20">
+              <Target className={`h-3 w-3 ${telemetry.fusionEfficiency > 0 ? "animate-spin" : ""}`} />
+              STATUS: {telemetry.fusionEfficiency > 0 ? "PLASMA ATIVO" : "SISTEMA OCIOSO"}
             </Badge>
             <SidebarTrigger />
           </div>
         </header>
         <div className="flex flex-1 overflow-hidden">
           <Sidebar>
-            <SidebarHeader className="border-b p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Console do Operador</h2>
+            <SidebarHeader className="border-b p-4 bg-slate-900/20">
+              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-primary/80">Protocolos do Reator</h2>
             </SidebarHeader>
             <SidebarContent className="p-0">
               <SidebarGroup>
-                <SidebarGroupLabel>Configurações do Reator</SidebarGroupLabel>
+                <SidebarGroupLabel>Configuração de Combustível</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
                   <ControlPanel 
                     settings={settings}
@@ -408,48 +427,64 @@ export function FusionReactorDashboard() {
               </SidebarGroup>
               
               <SidebarGroup>
-                <SidebarGroupLabel>Telemetria em Tempo Real</SidebarGroupLabel>
-                <SidebarGroupContent className="p-4">
-                  <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              <SidebarGroup>
-                <SidebarGroupLabel>Assistência de IA</SidebarGroupLabel>
+                <SidebarGroupLabel>Análise de IA & Automação</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
                   <AIAssistant
                     telemetryHistory={telemetryHistory}
                     settings={settings}
                     onTemperatureChange={handleTemperatureChange}
                     onConfinementChange={handleConfinementChange}
+                    onReactionModeChange={handleReactionModeChange}
                   />
                 </SidebarGroupContent>
               </SidebarGroup>
 
               <SidebarGroup>
-                <SidebarGroupLabel>Registros de Missão</SidebarGroupLabel>
+                <SidebarGroupLabel>Telemetria do Plasma</SidebarGroupLabel>
+                <SidebarGroupContent className="p-4">
+                  <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />
+                </SidebarGroupContent>
+              </SidebarGroup>
+
+              <SidebarGroup>
+                <SidebarGroupLabel>Banco de Dados de Simulação</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
                   <SimulationHistoryPanel />
                 </SidebarGroupContent>
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <SidebarInset className="bg-muted/10">
+          <SidebarInset className="bg-slate-950">
             <div className="relative flex h-full w-full items-center justify-center p-4">
-              <div className="relative aspect-video w-full max-w-[900px] overflow-hidden rounded-xl border-2 border-primary/20 bg-slate-950 shadow-2xl ring-1 ring-white/5">
+              <div className="relative aspect-video w-full max-w-[1000px] overflow-hidden rounded-2xl border border-primary/30 bg-black shadow-[0_0_50px_-12px_rgba(59,130,246,0.5)] ring-1 ring-white/5">
                 <SimulationCanvas 
                     getParticles={getParticles}
                     getFlashes={getFlashes}
                 />
-                <div className="absolute bottom-4 left-4 flex flex-col gap-1 rounded-md bg-black/60 p-2 text-[10px] text-white/70 backdrop-blur-sm">
+                
+                {/* HUD Overlay Elements */}
+                <div className="absolute top-6 right-6 flex flex-col items-end gap-2 pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-md border border-primary/20 p-2 rounded-lg">
+                    <span className="text-[10px] text-primary font-mono block mb-1">EFICIÊNCIA ATUAL</span>
+                    <div className="h-1 w-32 bg-slate-800 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-300" 
+                        style={{ width: `${telemetry.fusionEfficiency}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-6 left-6 flex flex-col gap-1.5 rounded-lg bg-black/70 p-3 text-[10px] text-white/80 backdrop-blur-lg border border-white/10">
+                  <span className="text-[8px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">Legenda do Plasma</span>
                   <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-[#00c8ff]" /> Deutério (D)
+                    <div className="h-2 w-2 rounded-full bg-[#00c8ff] shadow-[0_0_5px_#00c8ff]" /> Deutério (D)
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-[#ff6400]" /> Trítio (T)
+                    <div className="h-2 w-2 rounded-full bg-[#ff6400] shadow-[0_0_5px_#ff6400]" /> Trítio (T)
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-[#a855f7]" /> Hélio-3 (He3)
+                    <div className="h-2 w-2 rounded-full bg-[#a855f7] shadow-[0_0_5px_#a855f7]" /> Hélio-3 (He3)
                   </div>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview An AI assistant that suggests optimal temperature or confinement settings for increased fusion rates.
+ * @fileOverview An AI assistant that suggests optimal temperature, confinement settings, and fuel cycles.
  *
  * - getPlasmaOptimizationSuggestion - A function that handles the plasma optimization suggestion process.
  * - PlasmaOptimizationSuggestionInput - The input type for the getPlasmaOptimizationSuggestion function.
@@ -62,6 +62,12 @@ const PlasmaOptimizationSuggestionOutputSchema = z.object({
   confinementReason: z
     .string()
     .describe('Reasoning for the recommended confinement strength adjustment.'),
+  recommendedReactionMode: z
+    .enum(['DT', 'DD_DHe3'])
+    .describe('The recommended fuel cycle for the next phase of the simulation.'),
+  reactionModeReason: z
+    .string()
+    .describe('Reasoning for choosing or maintaining the fuel cycle.'),
   overallInsight: z
     .string()
     .describe(
@@ -82,23 +88,27 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `Você é um operador de reator de fusão e físico de plasma experiente. Seu objetivo é analisar o histórico recente de uma simulação de reator de fusão e fornecer conselhos acionáveis para aumentar a taxa de fusão e a produção de energia. O reator está operando no modo de ciclo de combustível: {{{reactionMode}}}.
+  prompt: `Você é o sistema nervoso central de um reator de fusão experimental. Sua missão é alcançar a ignição estável e máxima eficiência.
 
-Modo 'DT': Usa uma mistura de Deutério e Trítio. Esta é a via mais direta para a fusão, mas requer Trítio.
-Modo 'DD_DHe3': Começa apenas com Deutério (D). As reações D-D produzem Hélio-3 (He3), que então se funde com o Deutério em reações D-He3 para gerar energia. Este modo é mais complexo e pode exigir condições diferentes para ser eficiente.
+Você tem controle sobre:
+1. Temperatura (Energia cinética das partículas)
+2. Confinamento (Densidade e pressão magnética)
+3. Ciclo de Combustível (Modo de Reação)
 
-Analise as tendências para o modo atual. Se um aumento na temperatura levou a uma taxa de fusão maior, recomende novos aumentos. Se levou à instabilidade (por exemplo, menor contagem de partículas sem muito aumento na fusão), recomende uma diminuição ou confinamento mais forte. Forneça uma recomendação para a temperatura relativa e a força de confinamento.
+Modo 'DT': Alta taxa de fusão inicial, mas gera muitos nêutrons. Ideal para produção massiva de energia térmica.
+Modo 'DD_DHe3': Mais difícil de iniciar, mas aneutrônico (limpo) e permite conversão direta. Ideal para operações sustentáveis e estáveis.
 
-Considere o seguinte:
-- Para o modo 'DT', um equilíbrio entre temperatura e confinamento é crucial.
-- Para o modo 'DD_DHe3', você pode precisar de temperaturas mais altas para iniciar as reações D-D e, em seguida, manter as condições para as reações D-He3. Uma baixa taxa de fusão pode indicar que as reações D-D não estão ocorrendo suficientemente.
+Análise e Decisão:
+- Analise se o modo atual está rendendo o esperado.
+- Se a taxa de fusão estiver estagnada em 'DT', você pode sugerir mudar para 'DD_DHe3' para tentar estabilizar o plasma ou vice-versa se precisar de um "boost" de energia.
+- Você pode decidir trocar o modo de combustível se isso for levar a uma eficiência global maior ou se o plasma estiver colapsando.
 
-Aqui está o histórico recente das métricas de simulação, do mais antigo para o mais novo:
+Histórico recente:
 {{#each history}}
-- Snapshot em: {{{simulationDurationSeconds}}}s | Temp: {{{relativeTemperature}}} | Confinamento: {{{confinement}}} | Taxa de Fusão: {{{fusionRate}}} f/s | Contagem de Partículas: {{{numParticles}}} | Energia Total: {{{totalEnergyGenerated}}} MeV
+- {{{simulationDurationSeconds}}}s | T:{{{relativeTemperature}}} | C:{{{confinement}}} | Fusão:{{{fusionRate}}}f/s | Partículas:{{{numParticles}}} | Energia:{{{totalEnergyGenerated}}}MeV
 {{/each}}
 
-Forneça sua recomendação no formato JSON especificado. Cada recomendação deve incluir uma diretriz clara ('increase', 'decrease' ou 'maintain') e uma razão concisa baseada nas tendendas observadas no modo atual.`,
+Responda em JSON. Se decidir trocar o combustível, justifique em 'reactionModeReason'.`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(
