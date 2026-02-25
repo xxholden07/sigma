@@ -69,7 +69,8 @@ export function AIAssistant({
     settings,
     telemetryHistory,
     pastRuns,
-    isSimulating
+    isSimulating,
+    isAutoPilotOn
   });
 
   useEffect(() => {
@@ -82,14 +83,19 @@ export function AIAssistant({
       settings,
       telemetryHistory,
       pastRuns,
-      isSimulating
+      isSimulating,
+      isAutoPilotOn
     };
-  }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition, settings, telemetryHistory, pastRuns, isSimulating]);
+  }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition, settings, telemetryHistory, pastRuns, isSimulating, isAutoPilotOn]);
   
   useEffect(() => {
-    if (!isAutoPilotOn) return;
+    // A IA monitora continuamente se o reator estiver simulando
+    if (!isSimulating) {
+      setSuggestion(null);
+      return;
+    }
 
-    const runAutoPilotCycle = async () => {
+    const runAnalysisCycle = async () => {
       const { 
         telemetryHistory: currentHistory, 
         settings: currentSettings, 
@@ -98,17 +104,11 @@ export function AIAssistant({
         onConfinementChange: currentOnConfChange,
         onReactionModeChange: currentOnModeChange,
         onReset: currentOnReset,
-        onStartIgnition: currentOnStart,
-        isSimulating: currentIsSimulating
+        isSimulating: currentIsSimulating,
+        isAutoPilotOn: currentIsAutoPilotOn
       } = handlersRef.current;
 
-      // Se não estiver simulando, a IA tenta iniciar a ignição se o modo AUTO estiver ligado
-      if (!currentIsSimulating) {
-        currentOnStart();
-        return;
-      }
-
-      if (currentHistory.length < 5) return;
+      if (!currentIsSimulating || currentHistory.length < 5) return;
 
       setIsLoading(true);
       try {
@@ -126,51 +126,54 @@ export function AIAssistant({
         
         setSuggestion(result);
 
-        if (result.shouldReset) {
-          toast({
-            title: "Prometeu: Reinício Estratégico",
-            description: result.finalDiagnosis || "Condições suboptimais detectadas. Reiniciando núcleo...",
-            variant: "destructive",
-          });
-          currentOnReset();
-          // O próximo ciclo do intervalo cuidará do reinício da ignição
-          return;
-        }
+        // Somente aplica mudanças se o AUTO estiver ligado
+        if (currentIsAutoPilotOn) {
+          if (result.shouldReset) {
+            toast({
+              title: "Prometeu: Reinício Estratégico",
+              description: result.finalDiagnosis || "Condições suboptimais detectadas. Reiniciando núcleo...",
+              variant: "destructive",
+            });
+            currentOnReset();
+            return;
+          }
 
-        if (result.recommendedReactionMode !== currentSettings.reactionMode) {
-          toast({
-            title: "Prometeu: Alternando Ciclo",
-            description: `Transição estratégica para modo ${result.recommendedReactionMode}.`,
-          });
-          currentOnModeChange(result.recommendedReactionMode);
-          return;
-        }
+          if (result.recommendedReactionMode !== currentSettings.reactionMode) {
+            toast({
+              title: "Prometeu: Alternando Ciclo",
+              description: `Transição estratégica para modo ${result.recommendedReactionMode}.`,
+            });
+            currentOnModeChange(result.recommendedReactionMode);
+            return;
+          }
 
-        const tempStep = 10;
-        const confStep = 0.05;
+          const tempStep = 10;
+          const confStep = 0.05;
 
-        if (result.temperatureRecommendation === 'increase') {
-           currentOnTempChange(Math.min(200, currentSettings.temperature + tempStep));
-        } else if (result.temperatureRecommendation === 'decrease') {
-           currentOnTempChange(Math.max(0, currentSettings.temperature - tempStep));
-        }
+          if (result.temperatureRecommendation === 'increase') {
+             currentOnTempChange(Math.min(200, currentSettings.temperature + tempStep));
+          } else if (result.temperatureRecommendation === 'decrease') {
+             currentOnTempChange(Math.max(0, currentSettings.temperature - tempStep));
+          }
 
-        if (result.confinementRecommendation === 'increase') {
-           currentOnConfChange(parseFloat(Math.min(1, currentSettings.confinement + confStep).toFixed(2)));
-        } else if (result.confinementRecommendation === 'decrease') {
-           currentOnConfChange(parseFloat(Math.max(0, currentSettings.confinement - confStep).toFixed(2)));
+          if (result.confinementRecommendation === 'increase') {
+             currentOnConfChange(parseFloat(Math.min(1, currentSettings.confinement + confStep).toFixed(2)));
+          } else if (result.confinementRecommendation === 'decrease') {
+             currentOnConfChange(parseFloat(Math.max(0, currentSettings.confinement - confStep).toFixed(2)));
+          }
         }
 
       } catch (error) {
-        // Erro global
+        // Erro silencioso no monitoramento
       } finally {
         setIsLoading(false);
       }
     };
 
-    const intervalId = setInterval(runAutoPilotCycle, 5000);
+    // Ciclo de análise a cada 7 segundos para o Gêmeo Digital
+    const intervalId = setInterval(runAnalysisCycle, 7000);
     return () => clearInterval(intervalId);
-  }, [isAutoPilotOn, toast]);
+  }, [isSimulating]);
 
   const getStatusColor = (status?: string) => {
     if (status === 'OPERAÇÃO ESTÁVEL') return 'text-green-400';
@@ -198,7 +201,7 @@ export function AIAssistant({
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
-                Fase experimental inicial. Ignição em curtos períodos (segundos/minutos).
+                Fase experimental inicial. Ignição em curtos períodos.
               </TooltipContent>
             </Tooltip>
 
@@ -209,7 +212,7 @@ export function AIAssistant({
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
-                Protótipo industrial. Teste de durabilidade de materiais e confinamento longo.
+                Protótipo industrial. Teste de durabilidade e confinamento longo.
               </TooltipContent>
             </Tooltip>
 
@@ -220,7 +223,7 @@ export function AIAssistant({
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
-                Usina comercial completa. Operação contínua fornecendo energia para a rede.
+                Usina comercial. Operação contínua fornecendo energia.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -233,25 +236,24 @@ export function AIAssistant({
             <Bot className="h-3 w-3" />
             PROMETEU (AUTO)
           </Label>
-          <p className="text-[10px] text-muted-foreground italic tracking-tight">Análise de Lawson em tempo real.</p>
+          <p className="text-[10px] text-muted-foreground italic tracking-tight">IA com autoridade de comando.</p>
         </div>
         <Switch
           id="autopilot-switch"
           checked={isAutoPilotOn}
           onCheckedChange={setIsAutoPilotOn}
-          disabled={isLoading && !isAutoPilotOn}
         />
       </div>
 
-      {isAutoPilotOn && isLoading && (
+      {isLoading && (
         <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Otimizando Parâmetros...</span>
+          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Analisando Telemetria...</span>
         </div>
       )}
 
       {suggestion && (
-        <div className="rounded-lg border bg-card p-4 space-y-4 shadow-2xl relative overflow-hidden border-primary/10">
+        <div className="rounded-lg border bg-card p-4 space-y-4 shadow-2xl relative overflow-hidden border-primary/10 animate-in fade-in duration-500">
           <div className="absolute top-0 left-0 w-1 h-full bg-primary/40" />
           
           <div className="space-y-1">
@@ -310,6 +312,13 @@ export function AIAssistant({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {!isSimulating && (
+        <div className="rounded-lg border border-dashed border-primary/20 p-4 text-center space-y-2">
+          <p className="text-[10px] text-muted-foreground uppercase font-bold">Aguardando Ignição</p>
+          <p className="text-[11px] text-slate-400 italic">Configure o combustível e as variáveis acima antes de iniciar o pulso.</p>
         </div>
       )}
     </div>
