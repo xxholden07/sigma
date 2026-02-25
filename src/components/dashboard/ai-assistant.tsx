@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target, TrendingUp } from "lucide-react";
+import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target, TrendingUp, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { getAIConfigurationSuggestion } from "@/lib/actions";
 import type { PlasmaOptimizationSuggestionOutput } from "@/ai/flows/plasma-optimization-suggestion";
@@ -91,7 +93,6 @@ export function AIAssistant({
         onReset: currentOnReset
       } = handlersRef.current;
 
-      // Se não houver telemetria suficiente, aguarda um pouco mais
       if (currentHistory.length < 5) return;
 
       setIsLoading(true);
@@ -113,7 +114,7 @@ export function AIAssistant({
         if (result.shouldReset) {
           toast({
             title: "Prometeu: Reinício Estratégico",
-            description: "Condições suboptimais detectadas. Iniciando nova tentativa de ignição...",
+            description: result.finalDiagnosis || "Condições suboptimais detectadas. Reiniciando núcleo...",
             variant: "destructive",
           });
           currentOnReset();
@@ -129,7 +130,6 @@ export function AIAssistant({
           return;
         }
 
-        // Ajustes incrementais baseados na recomendação da IA
         const tempStep = 10;
         const confStep = 0.05;
 
@@ -146,13 +146,12 @@ export function AIAssistant({
         }
 
       } catch (error) {
-        console.error("Autopilot error:", error);
+        // Erros de AI são logados centralmente, sem necessidade de console.error aqui
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Ciclo mais rápido de 5 segundos para maior autonomia
     const intervalId = setInterval(runAutoPilotCycle, 5000);
     return () => clearInterval(intervalId);
   }, [isAutoPilotOn, toast]);
@@ -178,7 +177,7 @@ export function AIAssistant({
       });
       setSuggestion(result);
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro de Comunicação", description: "Falha ao conectar com o sistema Prometeu." });
+      // Falha tratada por erro global
     } finally {
       setIsLoading(false);
     }
@@ -201,11 +200,42 @@ export function AIAssistant({
           <span className="text-[10px] font-mono font-bold text-white">{stabilityMonths}/12 Meses</span>
         </div>
         <Progress value={stabilityProgress} className="h-1 bg-slate-800" />
-        <div className="flex justify-between items-center text-[8px] text-muted-foreground font-mono uppercase">
-          <span>Pulso</span>
-          <span>Escala</span>
-          <span>Planta</span>
-        </div>
+        <TooltipProvider>
+          <div className="flex justify-between items-center text-[8px] text-muted-foreground font-mono uppercase">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help flex items-center gap-0.5 hover:text-primary transition-colors">
+                  Pulso <Info className="h-2 w-2" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
+                Fase experimental inicial. Ignição em curtos períodos (segundos/minutos).
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help flex items-center gap-0.5 hover:text-primary transition-colors">
+                  Escala <Info className="h-2 w-2" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
+                Protótipo industrial. Teste de durabilidade de materiais e confinamento longo.
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help flex items-center gap-0.5 hover:text-primary transition-colors">
+                  Planta <Info className="h-2 w-2" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
+                Usina comercial completa. Operação contínua fornecendo energia para a rede.
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -214,7 +244,7 @@ export function AIAssistant({
             <Bot className="h-3 w-3" />
             PROMETEU (AUTO)
           </Label>
-          <p className="text-[10px] text-muted-foreground italic tracking-tight">Análise em ciclo contínuo.</p>
+          <p className="text-[10px] text-muted-foreground italic tracking-tight">Análise de Lawson em tempo real.</p>
         </div>
         <Switch
           id="autopilot-switch"
