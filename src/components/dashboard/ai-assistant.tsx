@@ -87,18 +87,19 @@ export function AIAssistant({
     };
   }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition, settings, telemetryHistory, pastRuns, isSimulating, isAutoPilotOn]);
   
+  // Ciclo de Inicialização da IA (Step 0)
   useEffect(() => {
     if (isAutoPilotOn && !isSimulating) {
         const timer = setTimeout(() => {
             const { onTemperatureChange, onConfinementChange, onStartIgnition } = handlersRef.current;
             
-            // Política inicial baseada em TORAX
-            onTemperatureChange(120);
-            onConfinementChange(0.35);
+            // Política inicial otimizada baseada em TORAX
+            onTemperatureChange(115);
+            onConfinementChange(0.32);
             
             toast({
                 title: "Prometeu (RL): Inicializando Política",
-                description: "Agente de IA iniciando nova iteração de otimização no ambiente.",
+                description: "Agente de IA iniciando nova iteração de otimização (Episode).",
             });
             onStartIgnition();
         }, 1500);
@@ -106,6 +107,7 @@ export function AIAssistant({
     }
   }, [isAutoPilotOn, isSimulating, toast]);
 
+  // Ciclo de Análise e Recompensa (Agent Step)
   useEffect(() => {
     if (!isSimulating) {
       setSuggestion(null);
@@ -143,11 +145,12 @@ export function AIAssistant({
         
         setSuggestion(result);
 
+        // Execução de Ações da Política (Policy Actions)
         if (currentIsAutoPilotOn) {
           if (result.shouldReset) {
             toast({
               title: "Prometeu: Otimização de Reinício",
-              description: result.finalDiagnosis || "Recompensa negativa detectada. Iterando para nova configuração...",
+              description: result.finalDiagnosis || "Recompensa negativa detectada. Resetando para nova política...",
               variant: "destructive",
             });
             currentOnReset();
@@ -156,8 +159,8 @@ export function AIAssistant({
 
           if (result.recommendedReactionMode !== currentSettings.reactionMode) {
             toast({
-              title: "Prometeu: Ajuste de Política",
-              description: `Alternando ciclo de combustível para modo ${result.recommendedReactionMode}.`,
+              title: "Prometeu: Ajuste de Ciclo",
+              description: `Alternando combustível para ${result.recommendedReactionMode}.`,
             });
             currentOnModeChange(result.recommendedReactionMode);
             return;
@@ -186,7 +189,7 @@ export function AIAssistant({
       }
     };
 
-    const intervalId = setInterval(runAnalysisCycle, 7000);
+    const intervalId = setInterval(runAnalysisCycle, 6000); // Step de 6 segundos
     return () => clearInterval(intervalId);
   }, [isSimulating]);
 
@@ -227,7 +230,7 @@ export function AIAssistant({
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
-                Protótipo industrial. Teste de durabilidade e confinamento longo.
+                Protótipo industrial. Teste de durabilidade longo.
               </TooltipContent>
             </Tooltip>
 
@@ -238,7 +241,7 @@ export function AIAssistant({
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[150px] text-[10px] bg-slate-900 border-primary/20">
-                Usina comercial. Operação contínua fornecendo energia.
+                Usina comercial em regime estacionário.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -263,7 +266,7 @@ export function AIAssistant({
       {isLoading && (
         <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          <span className="text-[10px] font-bold text-primary uppercase animate-pulse tracking-tighter">Otimizando Política de Controle...</span>
+          <span className="text-[10px] font-bold text-primary uppercase animate-pulse tracking-tighter">Calculando Função de Recompensa...</span>
         </div>
       )}
 
@@ -273,7 +276,7 @@ export function AIAssistant({
           
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Relatório Digital Twin</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Relatório Científico (RL)</span>
               <Badge variant="outline" className="text-[9px] h-4 uppercase border-primary/30">
                 Policy Optimized
               </Badge>
@@ -301,7 +304,7 @@ export function AIAssistant({
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
                 <TrendingUp className="h-3 w-3" />
-                Reward & Lawson Optimization:
+                Viabilidade e Produto Triplo:
               </div>
               <p className="text-[11px] leading-relaxed text-slate-300 italic bg-slate-900/40 p-2 rounded border border-white/5">
                 {suggestion.viabilityAnalysis}
@@ -309,7 +312,7 @@ export function AIAssistant({
             </div>
 
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Policy Stability Evaluation:</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase">Estabilidade e Disrupção:</p>
               <p className="text-[11px] leading-relaxed text-slate-300">
                 {suggestion.stabilityEvaluation}
               </p>
@@ -319,7 +322,7 @@ export function AIAssistant({
               <div className="flex gap-2 items-start">
                 {suggestion.shouldReset ? <ShieldAlert className="h-4 w-4 text-destructive shrink-0 mt-0.5" /> : <Activity className="h-4 w-4 text-primary shrink-0 mt-0.5" />}
                 <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Policy Diagnosis:</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Diagnóstico Final:</p>
                   <p className="text-[11px] font-bold text-foreground leading-snug">
                     {suggestion.finalDiagnosis}
                   </p>
@@ -332,8 +335,8 @@ export function AIAssistant({
 
       {!isSimulating && (
         <div className="rounded-lg border border-dashed border-primary/20 p-4 text-center space-y-2">
-          <p className="text-[10px] text-muted-foreground uppercase font-bold">Observation Space: Inativo</p>
-          <p className="text-[11px] text-slate-400 italic">O Agente RL aguarda a ativação do ambiente para iniciar a otimização.</p>
+          <p className="text-[10px] text-muted-foreground uppercase font-bold">Observation Space: Idle</p>
+          <p className="text-[11px] text-slate-400 italic">Aguardando ativação do ambiente para iniciar otimização da política.</p>
         </div>
       )}
     </div>
