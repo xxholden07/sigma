@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -23,7 +24,7 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Target, Microscope } from "lucide-react";
+import { Target, Microscope, Zap, ShieldAlert } from "lucide-react";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   const particles: Particle[] = [];
@@ -279,7 +280,6 @@ export function FusionReactorDashboard() {
                 newFusionRate = simulationStateRef.current.fusionsInLastSecond;
                 
                 // CÁLCULO DE Q INSTANTÂNEO (Pout / Pin)
-                // Pin baseada na energia necessária para manter a temperatura e confinamento
                 const energyInPerSecond = (settings.temperature * settings.confinement * settings.initialParticleCount * 0.05) + 1;
                 const energyOutPerSecond = newFusionRate * (settings.reactionMode === 'DT' ? DT_FUSION_ENERGY_MEV : DHE3_FUSION_ENERGY_MEV);
                 
@@ -351,7 +351,7 @@ export function FusionReactorDashboard() {
             </div>
 
             <Badge variant={telemetry.qFactor >= 1.0 ? "default" : "outline"} className="hidden sm:flex h-8 gap-2 border-primary/20 transition-all">
-              <Target className={`h-3 w-3 ${telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary"}`} />
+              <Zap className={`h-3 w-3 ${telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary"}`} />
               STATUS: {telemetry.qFactor >= 1.0 ? "IGNIÇÃO (Q > 1)" : "FASE EXPERIMENTAL"}
             </Badge>
             <SidebarTrigger />
@@ -416,9 +416,13 @@ export function FusionReactorDashboard() {
                     getFlashes={() => simulationStateRef.current.flashes}
                 />
                 <div className="absolute top-6 right-6 flex flex-col items-end gap-2 pointer-events-none">
-                  <div className="bg-black/60 backdrop-blur-md border border-primary/20 p-2 rounded-lg">
+                  <div className="bg-black/60 backdrop-blur-md border border-primary/20 p-2 rounded-lg flex flex-col items-end">
                     <span className="text-[10px] text-primary font-mono block mb-1">GANHO DE ENERGIA (Q)</span>
-                    <div className="text-xl font-mono font-bold text-white">{telemetry.qFactor.toFixed(2)}</div>
+                    <div className="text-xl font-mono font-bold text-white flex items-center gap-2">
+                      {telemetry.qFactor.toFixed(2)}
+                      {telemetry.qFactor >= 1.0 && <Zap className="h-4 w-4 text-green-400 animate-pulse" />}
+                      {telemetry.qFactor < 1.0 && <ShieldAlert className="h-4 w-4 text-yellow-400" />}
+                    </div>
                   </div>
                 </div>
               </div>

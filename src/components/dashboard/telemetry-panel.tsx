@@ -1,3 +1,4 @@
+
 "use client";
 
 import { BarChart, Atom, Zap, Gauge, Target, Download, Activity, ShieldAlert, CheckCircle2 } from "lucide-react";
@@ -92,7 +93,8 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
     };
 
     const getCountStatus = (count: number) => {
-        if (count < 25) return 'danger';
+        if (count < 20) return 'danger';
+        if (count < 40) return 'warning';
         return 'ok';
     };
 
@@ -102,7 +104,8 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
     };
 
     const getQStatus = (q: number) => {
-        if (q < 1) return 'warning';
+        if (q < 0.5) return 'danger';
+        if (q < 1.0) return 'warning';
         return 'ok';
     };
 

@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target } from "lucide-react";
+import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target, TrendingUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +56,6 @@ export function AIAssistant({
   const stabilityMonths = suggestion?.projectedStabilityMonths || 0;
   const stabilityProgress = (stabilityMonths / 12) * 100;
 
-  // Usamos um Ref para sempre ter acesso aos handlers mais recentes dentro do intervalo
   const handlersRef = useRef({
     onTemperatureChange,
     onConfinementChange,
@@ -129,7 +129,6 @@ export function AIAssistant({
           return;
         }
 
-        // Ajustes graduais baseados nas recomendações
         const tempStep = 5;
         const confStep = 0.02;
 
@@ -152,7 +151,6 @@ export function AIAssistant({
       }
     };
 
-    // Executa imediatamente e depois a cada 10 segundos para maior dinamismo
     runAutoPilotCycle();
     const intervalId = setInterval(runAutoPilotCycle, 10000);
     return () => clearInterval(intervalId);
@@ -198,11 +196,16 @@ export function AIAssistant({
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold text-primary uppercase tracking-tighter flex items-center gap-1">
             <Target className="h-3 w-3" />
-            Projeção de Escala Comercial
+            Viabilidade Comercial
           </span>
           <span className="text-[10px] font-mono font-bold text-white">{stabilityMonths}/12 Meses</span>
         </div>
         <Progress value={stabilityProgress} className="h-1 bg-slate-800" />
+        <div className="flex justify-between items-center text-[8px] text-muted-foreground font-mono uppercase">
+          <span>Pulso</span>
+          <span>Escala</span>
+          <span>Planta</span>
+        </div>
       </div>
 
       {/* Switch do Prometeu */}
@@ -212,7 +215,7 @@ export function AIAssistant({
             <Bot className="h-3 w-3" />
             PROMETEU (AUTO)
           </Label>
-          <p className="text-[10px] text-muted-foreground italic">Controle autônomo e aprendizado histórico.</p>
+          <p className="text-[10px] text-muted-foreground italic tracking-tight">Análise de Lawson em tempo real.</p>
         </div>
         <Switch
           id="autopilot-switch"
@@ -234,7 +237,7 @@ export function AIAssistant({
       {isAutoPilotOn && isLoading && (
         <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Prometeu Analisando Telemetria...</span>
+          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Prometeu: Sincronizando Gêmeo Digital...</span>
         </div>
       )}
 
@@ -246,33 +249,42 @@ export function AIAssistant({
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Relatório Científico</span>
-              <Badge variant="outline" className="text-[9px] h-4 uppercase border-primary/30">Fase Experimental</Badge>
+              <Badge variant="outline" className="text-[9px] h-4 uppercase border-primary/30">
+                Modo {settings.reactionMode}
+              </Badge>
             </div>
             <Separator className="bg-primary/10" />
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Status:</p>
-              <p className={`text-xs font-black tracking-tight ${getStatusColor(suggestion.status)}`}>
-                {suggestion.status}
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Status IA:</p>
+                <div className="flex items-center gap-1.5">
+                   <div className={`h-2 w-2 rounded-full animate-pulse ${suggestion.status === 'OPERAÇÃO ESTÁVEL' ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                   <p className={`text-[10px] font-black tracking-tight ${getStatusColor(suggestion.status)}`}>
+                    {suggestion.status}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Projeção:</p>
+                <p className="text-xs font-mono font-bold text-white">{suggestion.projectedStabilityMonths}/12 Meses</p>
+              </div>
             </div>
 
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Projeção de Escala Comercial:</p>
-              <p className="text-xs font-mono font-bold text-white">[{suggestion.projectedStabilityMonths}/12 Meses]</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Análise de Viabilidade e Produto Triplo:</p>
-              <p className="text-[11px] leading-relaxed text-slate-300 italic">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
+                <TrendingUp className="h-3 w-3" />
+                Viabilidade & Produto Triplo:
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-300 italic bg-slate-900/40 p-2 rounded border border-white/5">
                 {suggestion.viabilityAnalysis}
               </p>
             </div>
 
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Avaliação de Estabilidade e Disrupção:</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase">Estabilidade & Disrupção:</p>
               <p className="text-[11px] leading-relaxed text-slate-300">
                 {suggestion.stabilityEvaluation}
               </p>
