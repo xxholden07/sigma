@@ -19,8 +19,8 @@ import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { FusionIcon } from "../icons/fusion-icon";
 
-function createInitialParticles(): Particle[] {
-  return Array.from({ length: INITIAL_PARTICLE_COUNT }, (_, i) => ({
+function createInitialParticles(count: number): Particle[] {
+  return Array.from({ length: count }, (_, i) => ({
     id: i,
     x: 200 + Math.random() * 400,
     y: 150 + Math.random() * 450,
@@ -36,7 +36,12 @@ function getKineticEnergy(particle: Particle): number {
 }
 
 export function FusionReactorDashboard() {
-  const [settings, setSettings] = useState({ temperature: INITIAL_TEMPERATURE, confinement: INITIAL_CONFINEMENT });
+  const [settings, setSettings] = useState({
+    temperature: INITIAL_TEMPERATURE,
+    confinement: INITIAL_CONFINEMENT,
+    energyThreshold: ENERGY_THRESHOLD,
+    initialParticleCount: INITIAL_PARTICLE_COUNT,
+  });
   const [telemetry, setTelemetry] = useState({
     totalEnergyGenerated: 0,
     particleCount: INITIAL_PARTICLE_COUNT,
@@ -49,7 +54,7 @@ export function FusionReactorDashboard() {
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
   const simulationStateRef = useRef({
-    particles: createInitialParticles(),
+    particles: createInitialParticles(INITIAL_PARTICLE_COUNT),
     flashes: [] as FusionFlash[],
     nextParticleId: INITIAL_PARTICLE_COUNT,
     nextFlashId: 0,
@@ -62,14 +67,19 @@ export function FusionReactorDashboard() {
 
   const resetSimulation = useCallback(() => {
     simulationStateRef.current = {
-        particles: createInitialParticles(),
+        particles: createInitialParticles(INITIAL_PARTICLE_COUNT),
         flashes: [],
         nextParticleId: INITIAL_PARTICLE_COUNT,
         nextFlashId: 0,
         fusionsInLastSecond: 0,
     };
     totalEnergyGeneratedRef.current = 0;
-    setSettings({ temperature: INITIAL_TEMPERATURE, confinement: INITIAL_CONFINEMENT });
+    setSettings({
+      temperature: INITIAL_TEMPERATURE,
+      confinement: INITIAL_CONFINEMENT,
+      energyThreshold: ENERGY_THRESHOLD,
+      initialParticleCount: INITIAL_PARTICLE_COUNT,
+    });
     setTelemetryHistory([]);
 
     const initialTelemetry = {
@@ -111,12 +121,20 @@ export function FusionReactorDashboard() {
     setSettings(s => ({...s, confinement: value}));
   }, []);
 
+  const handleEnergyThresholdChange = useCallback((value: number) => {
+    setSettings(s => ({...s, energyThreshold: value}));
+  }, []);
+
+  const handleInitialParticleCountChange = useCallback((value: number) => {
+    setSettings(s => ({...s, initialParticleCount: value}));
+  }, []);
+
   useEffect(() => {
     let animationFrameId: number;
     
     const gameLoop = () => {
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
-      const confinement = settings.confinement;
+      const { confinement, energyThreshold } = settings;
 
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
@@ -153,7 +171,7 @@ export function FusionReactorDashboard() {
 
             if (dist < PARTICLE_RADIUS * 2 && p1.type !== p2.type) {
                 const collisionEnergy = Math.hypot(p1.vx - p2.vx, p1.vy - p2.vy);
-                if (collisionEnergy > ENERGY_THRESHOLD) {
+                if (collisionEnergy > energyThreshold) {
                     fused = true;
                     fusedIndices.add(i);
                     fusedIndices.add(j);
@@ -191,7 +209,7 @@ export function FusionReactorDashboard() {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [settings.confinement]);
+  }, [settings.confinement, settings.energyThreshold]);
   
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -273,9 +291,11 @@ export function FusionReactorDashboard() {
                 settings={settings}
                 onTemperatureChange={handleTemperatureChange}
                 onConfinementChange={handleConfinementChange}
+                onEnergyThresholdChange={handleEnergyThresholdChange}
+                onInitialParticleCountChange={handleInitialParticleCountChange}
                 onReset={resetSimulation}
               />
-              <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} /> {/* Passando telemetryHistory */}
+              <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />
               <AIAssistant
                 telemetryHistory={telemetryHistory}
                 settings={settings}
