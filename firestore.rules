@@ -2,22 +2,16 @@
  * # Firestore Security Rules for FusionFlow Reactor
  *
  * ## Core Philosophy
- * This ruleset enforces a strict user-ownership security model. All application data is segregated by user, ensuring that a user can only ever access their own information. The rules are designed to be secure by default, denying all access unless explicitly and safely granted.
+ * This ruleset enforces a strict user-ownership security model. All application data is segregated by user, ensuring that a user can only ever access their own information. The rules are secure by default, denying all access unless explicitly and safely granted.
  *
  * ## Data Structure
- * The data is organized hierarchically to reflect ownership. All user-specific data, including profiles, configurations, and simulation history, is nested under a top-level `/users/{userId}` path, where `{userId}` directly corresponds to the authenticated user's Firebase UID.
  * - `/users/{userId}` - Stores the UserProfile.
- * - `/users/{userId}/reactorConfigurations/{configId}` - Stores reactor settings owned by the user.
- * - `/users/{userId}/reactorConfigurations/{configId}/simulationRuns/{runId}` - Stores simulation results linked to a user's configuration.
+ * - `/users/{userId}/simulationRuns/{runId}` - Stores simulation results owned by the user.
  *
  * ## Key Security Decisions
  * - **Strict Ownership**: Access is granted only when the authenticated user's UID (`request.auth.uid`) matches the `{userId}` wildcard in the document path.
- * - **No User Enumeration**: Listing the top-level `/users` collection is explicitly disallowed to protect user privacy and prevent scraping of user IDs.
- * - **Authorization Independence**: The rules are designed to be fast and cost-effective. By denormalizing the `userId` field onto `ReactorConfiguration` and `SimulationRun` documents, we can validate ownership without performing expensive `get()` lookups on parent documents.
- * - **Immutable Ownership**: Once a document is created, its ownership (as defined by the `userId` or `id` field) cannot be changed. This prevents documents from being reassigned to other users.
- *
- * ## Prototyping Mode
- * These rules prioritize authorization (who can access what) over data shape validation. They do not enforce the exact schema (data types, required fields) of documents, allowing for rapid front-end development and iteration. However, they strictly validate fields critical for establishing and maintaining ownership and relational integrity.
+ * - **No User Enumeration**: Listing the top-level `/users` collection is explicitly disallowed.
+ * - **Authorization Independence**: Rules validate ownership without performing expensive `get()` lookups on parent documents by checking the `userId` field denormalized onto documents.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -27,48 +21,12 @@ service cloud.firestore {
     // Helper Functions
     // -------------------------------------------------------------------------
 
-    /**
-     * Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the authenticated user's UID matches the provided userId.
-     * This is the primary function for enforcing document ownership.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * Verifies that a document exists. Used in update/delete operations.
-     */
-    function isExistingDoc() {
-      return resource != null;
-    }
-
-    /**
-     * Combines ownership and existence checks for secure update/delete.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && isExistingDoc();
-    }
-
-    /**
-     * On create, validates that the UserProfile's internal 'id' field
-     * matches the document ID ({userId}), which must also match the auth UID.
-     */
-    function isUserProfileConsistentOnCreate(userId) {
-      return request.resource.data.id == userId;
-    }
-
-    /**
-     * On update, ensures the UserProfile's internal 'id' field is immutable.
-     */
-    function isUserProfileIdImmutable() {
-      return request.resource.data.id == resource.data.id;
     }
 
     /**
@@ -79,67 +37,29 @@ service cloud.firestore {
       return request.resource.data.userId == userId;
     }
 
-    /**
-     * On update, ensures a subcollection document's 'userId' field is immutable.
-     */
-    function isUserIdImmutable() {
-      return request.resource.data.userId == resource.data.id;
-    }
-
-
     // -------------------------------------------------------------------------
     // Collection Rules
     // -------------------------------------------------------------------------
 
-    /**
-     * @description Controls access to a user's own profile document.
-     * @path /users/{userId}
-     * @allow (get) An authenticated user reads their own profile: `get /users/user_abc` where `auth.uid == 'user_abc'`.
-     * @allow (create) An authenticated user creates their own profile for the first time.
-     * @deny (list) Any user, authenticated or not, attempts to list all users: `list /users`.
-     * @deny (get) An authenticated user tries to read another user's profile: `get /users/user_xyz` where `auth.uid == 'user_abc'`.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
-     */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      // A user can read and write to their own profile document.
+      // Creation requires the document ID to match the user's UID.
+      allow read, write: if isOwner(userId);
+      // Disallow listing all users.
       allow list: if false;
-      allow create: if isOwner(userId) && isUserProfileConsistentOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isUserProfileIdImmutable();
-      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Secures a user's private collection of reactor configurations.
-     * @path /users/{userId}/reactorConfigurations/{reactorConfigurationId}
-     * @allow (list) An authenticated user lists their own configurations: `list /users/user_abc/reactorConfigurations` where `auth.uid == 'user_abc'`.
-     * @allow (create) An authenticated user creates a new configuration, ensuring the document's `userId` field matches their own UID.
-     * @deny (get) A user attempts to read a configuration from another user's collection.
-     * @deny (create) A user tries to create a configuration and assign it to another user by forging the `userId` field.
-     * @principle Enforces strict document ownership within a user-specific subcollection and validates denormalized ownership data for authorization independence.
+     * @description Secures a user's private collection of simulation run history.
+     * @path /users/{userId}/simulationRuns/{simulationRunId}
+     * @allow (get, list) An authenticated user can read their own simulation history.
+     * @allow (create) An authenticated user can create a new simulation run record, ensuring the document's `userId` field matches their own UID.
+     * @deny (update, delete) Simulation history is immutable.
      */
-    match /users/{userId}/reactorConfigurations/{reactorConfigurationId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
+    match /users/{userId}/simulationRuns/{simulationRunId} {
+      allow get, list: if isOwner(userId);
       allow create: if isOwner(userId) && isOwnedByPathUserOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isUserIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Manages access to simulation run history, nested under a specific configuration.
-     * @path /users/{userId}/reactorConfigurations/{reactorConfigurationId}/simulationRuns/{simulationRunId}
-     * @allow (get, list) A user retrieves the history for one of their own configurations.
-     * @allow (create) A user saves a new simulation run, which must contain a `userId` field matching their auth UID.
-     * @deny (update) A user tries to modify another user's simulation run results.
-     * @deny (create) A user tries to create a simulation run under their own path but with a `userId` field pointing to someone else.
-     * @principle Secures deeply nested data by enforcing ownership based on the top-level path and validating denormalized `userId` field for integrity.
-     */
-    match /users/{userId}/reactorConfigurations/{reactorConfigurationId}/simulationRuns/{simulationRunId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && isOwnedByPathUserOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isUserIdImmutable();
-      allow delete: if isExistingOwner(userId);
+      allow update, delete: if false; // History is immutable
     }
   }
 }

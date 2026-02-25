@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import type { Particle, FusionFlash } from "@/lib/simulation-types";
+import type { Particle, FusionFlash, SimulationRun } from "@/lib/simulation-types";
 import {
   INITIAL_PARTICLE_COUNT,
   INITIAL_TEMPERATURE,
@@ -19,6 +18,9 @@ import { ControlPanel } from "./control-panel";
 import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { FusionIcon } from "../icons/fusion-icon";
+import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
+import { SimulationHistoryPanel } from "./simulation-history";
 
 function createInitialParticles(count: number): Particle[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -31,12 +33,14 @@ function createInitialParticles(count: number): Particle[] {
   }));
 }
 
-// Função auxiliar para calcular a energia cinética de uma partícula
 function getKineticEnergy(particle: Particle): number {
-  return 0.5 * (particle.vx * particle.vx + particle.vy * particle.vy); // Assumindo massa unitária para simplificar
+  return 0.5 * (particle.vx * particle.vx + particle.vy * particle.vy);
 }
 
 export function FusionReactorDashboard() {
+  const { firestore, auth } = useFirebase();
+  const { user, isUserLoading } = useUser();
+
   const [settings, setSettings] = useState({
     temperature: INITIAL_TEMPERATURE,
     confinement: INITIAL_CONFINEMENT,
@@ -50,8 +54,9 @@ export function FusionReactorDashboard() {
     fusionRate: 0,
     relativeTemperature: settings.temperature,
     fusionEfficiency: 0,
-    averageKineticEnergy: 0, // Adicionado ao estado inicial da telemetria
+    averageKineticEnergy: 0,
   });
+  const [peakFusionRate, setPeakFusionRate] = useState(0);
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
   const simulationStateRef = useRef({
@@ -66,7 +71,35 @@ export function FusionReactorDashboard() {
   const simulationTimeStartRef = useRef(performance.now());
   const lastFusionRateUpdateTime = useRef(performance.now());
 
+  useEffect(() => {
+    if (auth && !isUserLoading && !user) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [isUserLoading, user, auth]);
+
+  const handleSaveSimulation = useCallback(() => {
+    if (!user || !firestore) return;
+
+    const runData: Omit<SimulationRun, 'id'> = {
+        userId: user.uid,
+        createdAt: new Date().toISOString(),
+        durationSeconds: parseFloat(telemetry.simulationDuration.toFixed(1)),
+        totalEnergyGeneratedMeV: parseFloat(telemetry.totalEnergyGenerated.toFixed(1)),
+        peakFusionRate: peakFusionRate,
+        outcome: telemetry.fusionEfficiency > 75 ? 'High Yield' : telemetry.fusionEfficiency > 25 ? 'Stable' : 'Suboptimal',
+        initialParticleCount: settings.initialParticleCount,
+        initialTemperature: INITIAL_TEMPERATURE,
+        initialConfinement: INITIAL_CONFINEMENT,
+        finalEnergyThreshold: settings.energyThreshold,
+    };
+
+    const runsCollectionRef = collection(firestore, 'users', user.uid, 'simulationRuns');
+    addDocumentNonBlocking(runsCollectionRef, runData);
+  }, [user, firestore, telemetry, peakFusionRate, settings]);
+
   const resetSimulation = useCallback(() => {
+    handleSaveSimulation();
+
     const newSettings = {
       temperature: INITIAL_TEMPERATURE,
       confinement: INITIAL_CONFINEMENT,
@@ -85,6 +118,7 @@ export function FusionReactorDashboard() {
     totalEnergyGeneratedRef.current = 0;
     
     setTelemetryHistory([]);
+    setPeakFusionRate(0);
 
     const initialTelemetry = {
       totalEnergyGenerated: 0,
@@ -99,7 +133,7 @@ export function FusionReactorDashboard() {
     
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
-  }, []);
+  }, [handleSaveSimulation]);
 
   const handleTemperatureChange = useCallback((newTemp: number) => {
     const oldTemp = settings.temperature;
@@ -131,8 +165,6 @@ export function FusionReactorDashboard() {
 
   const handleInitialParticleCountChange = useCallback((value: number) => {
     setSettings(s => ({...s, initialParticleCount: value}));
-    // Note: This won't reset the simulation with the new particle count until reset is clicked.
-    // This is intentional to avoid jarring simulation resets while dragging a slider.
   }, []);
 
   useEffect(() => {
@@ -230,7 +262,6 @@ export function FusionReactorDashboard() {
 
             const simulationDuration = (performance.now() - simulationTimeStartRef.current) / 1000;
             
-            // Calcular a energia cinética média
             let totalKineticEnergy = 0;
             simulationStateRef.current.particles.forEach(p => {
               totalKineticEnergy += getKineticEnergy(p);
@@ -239,6 +270,8 @@ export function FusionReactorDashboard() {
               ? totalKineticEnergy / simulationStateRef.current.particles.length 
               : 0;
 
+            setPeakFusionRate(pfr => Math.max(pfr, newFusionRate));
+
             return {
                 totalEnergyGenerated: totalEnergyGeneratedRef.current,
                 particleCount: simulationStateRef.current.particles.length,
@@ -246,7 +279,7 @@ export function FusionReactorDashboard() {
                 simulationDuration: simulationDuration,
                 relativeTemperature: settings.temperature,
                 fusionEfficiency: Math.min((newFusionRate / 15.0) * 100, 100),
-                averageKineticEnergy: parseFloat(averageKineticEnergy.toFixed(2)), // Adicionado
+                averageKineticEnergy: parseFloat(averageKineticEnergy.toFixed(2)),
             };
         });
     }, 200);
@@ -263,7 +296,7 @@ export function FusionReactorDashboard() {
                 fusionRate: currentTelemetry.fusionRate,
                 totalEnergyGenerated: parseFloat(currentTelemetry.totalEnergyGenerated.toFixed(1)),
                 numParticles: currentTelemetry.particleCount,
-                averageKineticEnergy: currentTelemetry.averageKineticEnergy, // Adicionado
+                averageKineticEnergy: currentTelemetry.averageKineticEnergy,
             };
 
             setTelemetryHistory(prevHistory => {
@@ -308,6 +341,7 @@ export function FusionReactorDashboard() {
                 onTemperatureChange={handleTemperatureChange}
                 onConfinementChange={handleConfinementChange}
               />
+              <SimulationHistoryPanel />
             </SidebarContent>
           </Sidebar>
           <SidebarInset>
@@ -325,5 +359,3 @@ export function FusionReactorDashboard() {
     </SidebarProvider>
   );
 }
-
-    

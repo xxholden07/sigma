@@ -4,170 +4,84 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user's profile within the FusionFlow Reactor application, storing app-specific preferences and linking to their saved configurations and simulation history. Assumes an external authentication system manages core user credentials.",
+      "description": "Represents a user's profile, primarily for associating data.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
+          "description": "Unique identifier for the UserProfile entity, matches Firebase Auth UID."
         },
         "displayName": {
           "type": "string",
-          "description": "A user-friendly name chosen by the user or provided by the external authentication system."
+          "description": "A user-friendly name."
         },
         "createdAt": {
           "type": "string",
           "description": "Timestamp when the user profile was created.",
           "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was last updated.",
-          "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "displayName",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "ReactorConfiguration": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ReactorConfiguration",
-      "type": "object",
-      "description": "Stores a specific set of parameters and settings for running a plasma fusion simulation, potentially suggested by the AI assistant or customized by a user.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the ReactorConfiguration entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the UserProfile that owns this configuration. (Relationship: UserProfile 1:N ReactorConfiguration)"
-        },
-        "name": {
-          "type": "string",
-          "description": "A descriptive name for the configuration (e.g., 'High Temp Test', 'Stable Plasma Config')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the configuration's purpose or characteristics."
-        },
-        "relativeTemperature": {
-          "type": "number",
-          "description": "The initial relative temperature setting for the plasma simulation, influencing particle velocities."
-        },
-        "confinementForce": {
-          "type": "number",
-          "description": "The strength of the magnetic confinement force applied to particles, pulling them towards the center."
-        },
-        "fusionThresholdEnergy": {
-          "type": "number",
-          "description": "The minimum kinetic energy required for two particles to fuse upon collision."
-        },
-        "initialParticleCount": {
-          "type": "number",
-          "description": "The total number of particles (Deuterium and Tritium) initially present in the simulation."
-        },
-        "initialDeuteriumTritiumRatio": {
-          "type": "number",
-          "description": "The ratio of Deuterium particles to Tritium particles at the start of the simulation (e.g., 0.5 for a 1:1 ratio). Value should be between 0 and 1."
-        },
-        "isRecommendedByAI": {
-          "type": "boolean",
-          "description": "A boolean indicating if this configuration was automatically suggested by the AI Plasma Configuration Assistant."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the configuration was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the configuration was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userId",
-        "name",
-        "description",
-        "relativeTemperature",
-        "confinementForce",
-        "fusionThresholdEnergy",
-        "initialParticleCount",
-        "initialDeuteriumTritiumRatio",
-        "isRecommendedByAI",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "createdAt"]
     },
     "SimulationRun": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SimulationRun",
       "type": "object",
-      "description": "Records the results and metadata of a single plasma fusion simulation session, used for historical tracking and analysis by the AI assistant.",
+      "description": "Records the results and settings of a single plasma fusion simulation session.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Unique identifier for the SimulationRun entity."
         },
-        "configurationId": {
-          "type": "string",
-          "description": "Reference to the ReactorConfiguration used for this simulation run. (Relationship: ReactorConfiguration 1:N SimulationRun)"
-        },
         "userId": {
           "type": "string",
-          "description": "Reference to the UserProfile that initiated this simulation run. (Relationship: UserProfile 1:N SimulationRun)"
+          "description": "Reference to the UserProfile that initiated this simulation run."
         },
-        "startTime": {
+        "createdAt": {
           "type": "string",
-          "description": "Timestamp when the simulation run began.",
+          "description": "Timestamp when the simulation run was saved.",
           "format": "date-time"
-        },
-        "endTime": {
-          "type": "string",
-          "description": "Timestamp when the simulation run concluded.",
-          "format": "date-time"
-        },
-        "totalEnergyGeneratedMeV": {
-          "type": "number",
-          "description": "The total amount of energy generated in Mega-electronvolts (MeV) during the simulation."
-        },
-        "peakRelativeTemperature": {
-          "type": "number",
-          "description": "The highest relative temperature observed during the simulation run."
-        },
-        "averageFusionRatePerSecond": {
-          "type": "number",
-          "description": "The average number of fusion events occurring per second during the simulation."
-        },
-        "notes": {
-          "type": "string",
-          "description": "Any additional user notes or observations about this specific simulation run."
-        },
-        "outcome": {
-          "type": "string",
-          "description": "A qualitative description of the simulation's result (e.g., 'High Yield', 'Stable', 'Suboptimal')."
         },
         "durationSeconds": {
           "type": "number",
           "description": "The total duration of the simulation run in seconds."
+        },
+        "totalEnergyGeneratedMeV": {
+          "type": "number",
+          "description": "The total amount of energy generated in Mega-electronvolts (MeV)."
+        },
+        "peakFusionRate": {
+          "type": "number",
+          "description": "The highest fusion rate (f/s) achieved during the run."
+        },
+        "outcome": {
+          "type": "string",
+          "description": "A qualitative description of the simulation's result (e.g., 'Stable', 'High Yield')."
+        },
+        "initialParticleCount": {
+          "type": "number",
+          "description": "The number of particles at the start of the simulation."
+        },
+        "initialTemperature": {
+          "type": "number",
+          "description": "The initial temperature setting."
+        },
+        "initialConfinement": {
+          "type": "number",
+          "description": "The initial confinement strength setting."
+        },
+        "finalEnergyThreshold": {
+            "type": "number",
+            "description": "The final energy threshold at the end of the run."
         }
       },
       "required": [
         "id",
-        "configurationId",
         "userId",
-        "startTime",
-        "endTime",
+        "createdAt",
+        "durationSeconds",
         "totalEnergyGeneratedMeV",
-        "peakRelativeTemperature",
-        "averageFusionRatePerSecond",
-        "outcome",
-        "durationSeconds"
+        "peakFusionRate",
+        "outcome"
       ]
     }
   },
@@ -186,7 +100,7 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user profile information. Access is restricted to the user whose ID matches '{userId}'. The user's Firebase UID (`request.auth.uid`) must match the '{userId}' parameter.",
+          "description": "Stores user profile information. Access is restricted to the user whose ID matches '{userId}'.",
           "params": [
             {
               "name": "userId",
@@ -196,50 +110,26 @@
         }
       },
       {
-        "path": "/users/{userId}/reactorConfigurations/{reactorConfigurationId}",
-        "definition": {
-          "entityName": "ReactorConfiguration",
-          "schema": {
-            "$ref": "#/backend/entities/ReactorConfiguration"
-          },
-          "description": "Contains specific reactor configurations created or saved by a user. Includes denormalized 'userId' field for authorization independence, ensuring that the user ID in the path matches the owner's ID and the document's 'userId' field.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user who owns this configuration."
-            },
-            {
-              "name": "reactorConfigurationId",
-              "description": "The unique ID of the specific reactor configuration."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/reactorConfigurations/{reactorConfigurationId}/simulationRuns/{simulationRunId}",
+        "path": "/users/{userId}/simulationRuns/{simulationRunId}",
         "definition": {
           "entityName": "SimulationRun",
           "schema": {
             "$ref": "#/backend/entities/SimulationRun"
           },
-          "description": "Records the results and metadata of a single simulation run. Nested under a specific reactor configuration and user. Includes denormalized 'userId' field for authorization independence, verifying path and document owner.",
+          "description": "Contains the results of a past simulation run for a specific user.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique ID of the user who initiated this simulation run."
-            },
-            {
-              "name": "reactorConfigurationId",
-              "description": "The unique ID of the reactor configuration used for this simulation."
+              "description": "The unique ID of the user who owns this simulation run."
             },
             {
               "name": "simulationRunId",
-              "description": "The unique ID of this specific simulation run."
+              "description": "The unique ID of the specific simulation run."
             }
           ]
         }
       }
     ],
-    "reasoning": "The recommended Firestore structure for FusionFlow Reactor prioritizes Authorization Independence and secure `list` operations by leveraging path-based ownership and explicit denormalization. All user-specific data is nested under a `/users/{userId}` path, which directly corresponds to the authenticated user's ID (`request.auth.uid`).\n\n1.  **UserProfile:** Each user's profile is stored at `/users/{userId}`, where `{userId}` is the `request.auth.uid`. This direct mapping makes authorization trivial: a user can only read or write their own profile by matching `request.auth.uid` to the `{userId}` in the path. No denormalization is needed here as the path itself carries the authorization context.\n\n2.  **ReactorConfiguration:** These are user-owned configurations. Instead of a top-level collection, they are nested under the owning user's path: `/users/{userId}/reactorConfigurations/{reactorConfigurationId}`. The `ReactorConfiguration` entity schema explicitly includes a `userId` field. This is a critical denormalization strategy. For authorization, rules will verify that `request.auth.uid == userId` (from the path wildcard) AND `resource.data.userId == userId` (from the document's content). This dual check ensures strong ownership validation without requiring a `get()` call to the parent `UserProfile` document, thus maintaining Authorization Independence.\n\n3.  **SimulationRun:** Similarly, simulation runs are nested under their respective configurations, which are themselves under the owning user: `/users/{userId}/reactorConfigurations/{reactorConfigurationId}/simulationRuns/{simulationRunId}`. The `SimulationRun` entity also explicitly includes a `userId` field. This field is denormalized, just like in `ReactorConfiguration`, enabling rules to directly verify `request.auth.uid == userId` (from the path wildcard) AND `resource.data.userId == userId` (from the document's content) without any `get()` operations. The `configurationId` is used for linking, but not for direct authorization checks at the `SimulationRun` level.\n\n**Authorization Independence:** This structure rigorously implements Authorization Independence. By including `userId` directly in `ReactorConfiguration` and `SimulationRun` documents and placing them under `/users/{userId}/...` paths, security rules can evaluate ownership solely based on the `request.auth.uid` matching the `{userId}` wildcard in the path and the `userId` field in the document. This eliminates the need for expensive and complex `get()` operations in rules to check parent ownership, simplifying rule logic and ensuring atomic operations.\n\n**Secure QAPs (Query-Agnostic Permissions):** The structural segregation by user (`/users/{userId}/...`) naturally enforces secure `list` operations. A user can only query (list) data within their own `/users/{request.auth.uid}/` sub-hierarchy. Any attempt to list data from another user's path will be denied by the rules, as `request.auth.uid` would not match the `{userId}` wildcard in the requested path. This design ensures that all documents in a given collection (e.g., `reactorConfigurations` under a specific user) share the same security posture (owned by that user), fulfilling the Structural Segregation mandate and making `list` queries inherently safe and performant."
+    "reasoning": "The structure is user-centric, nesting all data under `/users/{userId}` for straightforward security rules. `SimulationRun` documents are stored in a dedicated subcollection under each user, containing all relevant data from a simulation session. This denormalization simplifies queries for a user's simulation history, as no joins or lookups to other collections are needed."
   }
 }

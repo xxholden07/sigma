@@ -16,3 +16,17 @@ export interface FusionFlash {
   radius: number;
   opacity: number;
 }
+
+export interface SimulationRun {
+  id: string;
+  userId: string;
+  createdAt: string; // ISO String
+  durationSeconds: number;
+  totalEnergyGeneratedMeV: number;
+  peakFusionRate: number;
+  outcome: 'High Yield' | 'Stable' | 'Suboptimal';
+  initialParticleCount: number;
+  initialTemperature: number;
+  initialConfinement: number;
+  finalEnergyThreshold: number;
+}
