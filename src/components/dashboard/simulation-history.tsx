@@ -1,8 +1,8 @@
+
 'use client';
 
-import { useMemo } from 'react';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
-import { History, Loader2, ServerCrash } from 'lucide-react';
+import { History, Loader2, ServerCrash, Database } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import type { SimulationRun } from '@/lib/simulation-types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,7 @@ export function SimulationHistoryPanel() {
     return query(
       collection(firestore, 'users', user.uid, 'simulationRuns'),
       orderBy('createdAt', 'desc'),
-      limit(10)
+      limit(20)
     );
   }, [firestore, user]);
 
@@ -37,50 +37,73 @@ export function SimulationHistoryPanel() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
-        <div className="space-y-1.5">
-          <CardTitle className="text-lg font-headline">Histórico</CardTitle>
-          <CardDescription>Suas simulações recentes.</CardDescription>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <History className="h-3 w-3 text-muted-foreground" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Últimos Experimentos</span>
         </div>
-        <History className="h-6 w-6 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[200px] w-full">
-          {isLoading && (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {error && (
-             <div className="flex flex-col items-center justify-center h-full text-center">
-                <ServerCrash className="h-8 w-8 text-destructive mb-2" />
-                <p className="text-sm font-medium text-destructive">Erro ao carregar histórico</p>
-                <p className="text-xs text-muted-foreground">Verifique as regras de segurança.</p>
-             </div>
-          )}
-          {!isLoading && !error && (!runs || runs.length === 0) && (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-sm text-muted-foreground">Nenhuma simulação salva ainda.</p>
-            </div>
-          )}
-          <div className="space-y-4">
-            {runs?.map((run) => (
-              <div key={run.id} className="flex justify-between items-start text-sm">
-                <div className="space-y-1">
-                  <p className="font-medium">
-                    {run.totalEnergyGeneratedMeV.toFixed(1)} MeV em {run.durationSeconds.toFixed(1)}s
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(run.createdAt), { addSuffix: true, locale: ptBR })}
-                  </p>
-                </div>
-                <Badge variant={getOutcomeBadgeVariant(run.outcome)}>{run.outcome}</Badge>
-              </div>
-            ))}
+        <Badge variant="outline" className="text-[9px] h-4 border-primary/30">
+          {runs?.length || 0} REGISTROS
+        </Badge>
+      </div>
+
+      <ScrollArea className="h-[250px] w-full pr-4">
+        {isLoading && (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+        )}
+        
+        {error && (
+          <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
+            <ServerCrash className="h-6 w-6 text-destructive" />
+            <p className="text-[10px] font-bold text-destructive uppercase">Erro de Sincronia</p>
+          </div>
+        )}
+
+        {!isLoading && !error && (!runs || runs.length === 0) && (
+          <div className="flex flex-col items-center justify-center py-10 text-center opacity-50 space-y-2">
+            <Database className="h-6 w-6 text-muted-foreground" />
+            <p className="text-[10px] font-bold uppercase tracking-tighter">Dataset Vazio</p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {runs?.map((run) => (
+            <div key={run.id} className="group relative overflow-hidden rounded-md border border-white/5 bg-slate-900/40 p-2 transition-all hover:bg-slate-900/60">
+              <div className="flex items-center justify-between mb-1.5">
+                <Badge variant={getOutcomeBadgeVariant(run.outcome)} className="text-[8px] h-3 px-1">
+                  {run.outcome}
+                </Badge>
+                <span className="text-[8px] font-mono text-muted-foreground">
+                  {formatDistanceToNow(new Date(run.createdAt), { addSuffix: true, locale: ptBR })}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="space-y-0.5">
+                  <p className="text-muted-foreground uppercase text-[8px] font-bold">Energia:</p>
+                  <p className="font-mono font-bold text-white">{run.totalEnergyGeneratedMeV.toFixed(1)} MeV</p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-muted-foreground uppercase text-[8px] font-bold">Duração:</p>
+                  <p className="font-mono font-bold text-white">{run.durationSeconds.toFixed(1)}s</p>
+                </div>
+              </div>
+
+              <div className="mt-2 flex gap-1 items-center">
+                 <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary" 
+                      style={{ width: `${Math.min(100, (run.totalEnergyGeneratedMeV / 50) * 100)}%` }} 
+                    />
+                 </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
   );
 }

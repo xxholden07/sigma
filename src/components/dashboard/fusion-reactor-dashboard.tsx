@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -25,7 +26,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Microscope, Zap, ShieldAlert, Play, AlertTriangle } from "lucide-react";
+import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
@@ -70,17 +71,12 @@ export function FusionReactorDashboard() {
     wallIntegrity: 100,
     aiReward: 0,
     fractalDimensionD: 1.0,
+    simulationDuration: 0,
   });
   
   const [peakFusionRate, setPeakFusionRate] = useState(0);
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
-
-  const runsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'users', user.uid, 'simulationRuns'), orderBy('createdAt', 'desc'));
-  }, [firestore, user]);
-  const { data: runs } = useCollection<SimulationRun>(runsQuery);
 
   const simulationStateRef = useRef({
     particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode),
@@ -163,6 +159,7 @@ export function FusionReactorDashboard() {
       wallIntegrity: 100,
       aiReward: 0,
       fractalDimensionD: 1.0,
+      simulationDuration: 0,
     });
     
     simulationTimeStartRef.current = performance.now();
@@ -297,7 +294,6 @@ export function FusionReactorDashboard() {
             const collisionEnergy = Math.hypot(p1.vx - p2.vx, p1.vy - p2.vy);
             if (collisionEnergy > energyThreshold) {
               
-              let energyReleased = 0;
               let reactionType: 'none' | 'DT' | 'DD' | 'DHe3' = 'none';
 
               if (reactionMode === 'DT' && p1.type !== p2.type) {
@@ -316,11 +312,11 @@ export function FusionReactorDashboard() {
               if (reactionType !== 'none') {
                 hasFusedWithAnother = true;
                 fusedIndices.add(j);
-                newEnergy += energyReleased;
+                newEnergy += (reactionType === 'DT' ? DT_FUSION_ENERGY_MEV : (reactionType === 'DHe3' ? DHE3_FUSION_ENERGY_MEV : 2.0));
                 
                 if (reactionType === 'DD') {
                   newParticlesList.push({ id: simulationStateRef.current.nextParticleId++, x: p1.x, y: p1.y, vx: p1.vx * 0.5, vy: p1.vy * 0.5, type: 'He3' });
-                } else if (energyReleased > 0) {
+                } else if (newEnergy > 0) {
                   simulationStateRef.current.fusionsInLastSecond++;
                   currentFlashes.push({ id: simulationStateRef.current.nextFlashId++, x: p1.x, y: p1.y, radius: 2, opacity: 1 });
                 }
@@ -372,8 +368,6 @@ export function FusionReactorDashboard() {
             const lyapunov = parseFloat(rawLyapunov.toFixed(3));
             const magSafetyQ = parseFloat((1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50))).toFixed(3));
 
-            // Cálculo da Dimensão Fractal (D) simulada baseado no caos e q
-            // D = 1.0 (Liso) + fator de turbulência
             const fractalTurbulence = Math.max(0, lyapunov * 0.5) + (Math.abs(magSafetyQ - PHI) * 0.3);
             const dFactor = 1.0 + Math.min(0.9, fractalTurbulence);
 
@@ -386,10 +380,9 @@ export function FusionReactorDashboard() {
                 }
             }
 
-            // Calculo de Recompensa IA (Reward Shaping Avançado)
             const kamBonus = Math.exp(-Math.abs(magSafetyQ - PHI)) * 5;
             const chaosPenalty = lyapunov > 0 ? lyapunov * 10 : 0;
-            const fractalPenalty = (dFactor - 1.0) * 20; // Punição severa para bordas desfiadas
+            const fractalPenalty = (dFactor - 1.0) * 20; 
             const survivalReward = 1.0;
             const energyPenalty = (settings.temperature * settings.confinement * 0.02);
             
@@ -463,7 +456,7 @@ export function FusionReactorDashboard() {
             <SidebarHeader className="border-b p-4 bg-slate-900/20">
               <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-primary/80">Laboratório TORAX</h2>
             </SidebarHeader>
-            <SidebarContent className="p-0">
+            <SidebarContent className="p-0 overflow-auto">
               <SidebarGroup>
                 <SidebarGroupLabel>Controle de Variáveis</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
@@ -488,7 +481,6 @@ export function FusionReactorDashboard() {
                     telemetryHistory={telemetryHistory}
                     settings={settings}
                     currentReward={telemetry.aiReward}
-                    pastRuns={runs || []}
                     onTemperatureChange={handleTemperatureChange}
                     onConfinementChange={handleConfinementChange}
                     onReactionModeChange={handleReactionModeChange}
@@ -507,7 +499,10 @@ export function FusionReactorDashboard() {
               </SidebarGroup>
 
               <SidebarGroup>
-                <SidebarGroupLabel>Dataset de Treinamento</SidebarGroupLabel>
+                <SidebarGroupLabel className="flex items-center gap-2">
+                   <Database className="h-3 w-3" />
+                   Dataset de Treinamento
+                </SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
                   <SimulationHistoryPanel />
                 </SidebarGroupContent>
