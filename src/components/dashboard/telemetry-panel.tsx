@@ -1,21 +1,11 @@
 "use client";
 
-import { BarChart, Atom, Zap, Gauge, Target, Download, Activity, TrendingDown, Star } from "lucide-react";
+import { Gauge, Zap, Activity, TrendingDown, Star, Download, Shield, Target } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-interface TelemetrySnapshot {
-  simulationDurationSeconds: number;
-  relativeTemperature: number;
-  confinement: number;
-  fusionRate: number;
-  totalEnergyGenerated: number;
-  numParticles: number;
-  averageKineticEnergy?: number;
-  lyapunovExponent?: number;
-  magneticSafetyFactorQ?: number;
-}
+import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
+import type { TelemetrySnapshot } from "@/lib/simulation-types";
 
 interface TelemetryPanelProps {
   telemetry: {
@@ -28,9 +18,22 @@ interface TelemetryPanelProps {
     qFactor: number;
     lyapunovExponent: number;
     magneticSafetyFactorQ: number;
+    wallIntegrity: number;
+    aiReward: number;
   };
   telemetryHistory: TelemetrySnapshot[];
 }
+
+const Sparkline = ({ data, dataKey, color }: { data: any[], dataKey: string, color: string }) => (
+  <div className="h-6 w-16">
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data}>
+        <YAxis hide domain={['auto', 'auto']} />
+        <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  </div>
+);
 
 const TelemetryItem = ({ 
   icon, 
@@ -38,22 +41,27 @@ const TelemetryItem = ({
   value, 
   unit, 
   colorClass, 
-  status 
+  status,
+  history,
+  historyKey
 }: { 
   icon: React.ReactNode, 
   label: string, 
   value: string | number, 
   unit?: string, 
   colorClass?: string,
-  status?: 'ok' | 'danger' | 'warning'
+  status?: 'ok' | 'danger' | 'warning',
+  history?: any[],
+  historyKey?: string
 }) => (
     <div className="flex flex-col py-2 border-b border-white/5 last:border-0">
         <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
                 <div className={colorClass}>{icon}</div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+                {history && historyKey && <Sparkline data={history} dataKey={historyKey} color={status === 'danger' ? '#f87171' : '#60a5fa'} />}
                 {status && (
                     <Badge 
                         variant="outline" 
@@ -111,6 +119,23 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
 
   return (
     <div className="space-y-4">
+      <div className="space-y-2 rounded-lg bg-slate-900/60 p-3 border border-white/5 shadow-inner">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Shield className={`h-3 w-3 ${telemetry.wallIntegrity < 30 ? 'text-red-500 animate-pulse' : 'text-blue-400'}`} />
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Integridade da Blindagem</span>
+          </div>
+          <span className={`text-xs font-mono font-bold ${telemetry.wallIntegrity < 30 ? 'text-red-500' : 'text-white'}`}>
+            {telemetry.wallIntegrity.toFixed(1)}%
+          </span>
+        </div>
+        <Progress 
+            value={telemetry.wallIntegrity} 
+            className={`h-1.5 bg-slate-800 ${telemetry.wallIntegrity < 30 ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-500'}`} 
+        />
+        <p className="text-[8px] text-muted-foreground italic uppercase text-right">Ataque de Nêutrons Ativo (Ciclo D-T)</p>
+      </div>
+
       <div className="grid gap-0.5 rounded-lg border border-white/5 bg-slate-900/40 p-2">
         <TelemetryItem 
             icon={<Gauge className="h-3 w-3" />}
@@ -133,6 +158,8 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
             value={telemetry.lyapunovExponent.toFixed(3)}
             colorClass="text-red-400"
             status={getLyapunovStatus(telemetry.lyapunovExponent)}
+            history={telemetryHistory}
+            historyKey="lyapunovExponent"
         />
         <TelemetryItem 
             icon={<Star className="h-3 w-3" />}
@@ -141,6 +168,8 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
             unit="φ=1.618"
             colorClass="text-amber-400"
             status={getKAMStatus(telemetry.magneticSafetyFactorQ)}
+            history={telemetryHistory}
+            historyKey="magneticSafetyFactorQ"
         />
         <TelemetryItem 
             icon={<Activity className="h-3 w-3" />}
@@ -148,33 +177,20 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
             value={telemetry.fusionRate}
             unit="f/s"
             colorClass="text-primary"
+            history={telemetryHistory}
+            historyKey="fusionRate"
         />
         <TelemetryItem
             icon={<Target className="h-3 w-3" />}
             label="Fator Q (Ganho)"
             value={telemetry.qFactor.toFixed(2)}
             colorClass="text-green-500"
-        />
-      </div>
-
-      <div className="space-y-2 rounded-lg bg-primary/5 p-3 border border-primary/20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Atom className="h-3 w-3 text-purple-400" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Sincronia KAM (φ)</span>
-          </div>
-          <span className="text-xs font-mono font-bold text-white">
-            {Math.max(0, (1 - Math.abs(telemetry.magneticSafetyFactorQ - 1.618)) * 100).toFixed(0)}%
-          </span>
-        </div>
-        <Progress 
-            value={Math.max(0, (1 - Math.abs(telemetry.magneticSafetyFactorQ - 1.618)) * 100)} 
-            className="h-1.5 bg-slate-800" 
+            status={telemetry.qFactor >= 1.0 ? 'ok' : 'warning'}
         />
       </div>
 
       <Button variant="ghost" size="sm" onClick={handleExportData} className="w-full h-8 text-[9px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/10 border border-white/5">
-        <Download className="mr-2 h-3 w-3" /> EXPORTAR DADOS RL
+        <Download className="mr-2 h-3 w-3" /> EXPORTAR DATASET JAX/TORAX
       </Button>
     </div>
   );

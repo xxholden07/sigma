@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Loader2, Zap, Activity, ShieldAlert, Target, TrendingUp, Info, BrainCircuit } from "lucide-react";
+import { Bot, Loader2, Zap, Activity, ShieldAlert, Target, TrendingUp, Info, BrainCircuit, Trophy } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -12,17 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/hooks/use-toast";
 import { getAIConfigurationSuggestion } from "@/lib/actions";
 import type { PlasmaOptimizationSuggestionOutput } from "@/ai/flows/plasma-optimization-suggestion";
-import type { ReactionMode, SimulationRun } from "@/lib/simulation-types";
-
-interface TelemetrySnapshot {
-  simulationDurationSeconds: number;
-  relativeTemperature: number;
-  confinement: number;
-  fusionRate: number;
-  totalEnergyGenerated: number;
-  numParticles: number;
-  qFactor?: number;
-}
+import type { ReactionMode, SimulationRun, TelemetrySnapshot } from "@/lib/simulation-types";
 
 interface AIAssistantProps {
   telemetryHistory: TelemetrySnapshot[];
@@ -31,6 +21,7 @@ interface AIAssistantProps {
     confinement: number;
     reactionMode: ReactionMode;
   };
+  currentReward: number;
   pastRuns?: SimulationRun[];
   onTemperatureChange: (value: number) => void;
   onConfinementChange: (value: number) => void;
@@ -43,6 +34,7 @@ interface AIAssistantProps {
 export function AIAssistant({ 
   telemetryHistory, 
   settings, 
+  currentReward,
   pastRuns = [],
   onTemperatureChange, 
   onConfinementChange,
@@ -92,20 +84,13 @@ export function AIAssistant({
     if (isAutoPilotOn && !isSimulating) {
         const timer = setTimeout(() => {
             const { onTemperatureChange, onConfinementChange, onStartIgnition } = handlersRef.current;
-            
-            // Política inicial otimizada baseada em TORAX
             onTemperatureChange(115);
             onConfinementChange(0.32);
-            
-            toast({
-                title: "Prometeu (RL): Inicializando Política",
-                description: "Agente de IA iniciando nova iteração de otimização (Episode).",
-            });
             onStartIgnition();
         }, 1500);
         return () => clearTimeout(timer);
     }
-  }, [isAutoPilotOn, isSimulating, toast]);
+  }, [isAutoPilotOn, isSimulating]);
 
   // Ciclo de Análise e Recompensa (Agent Step)
   useEffect(() => {
@@ -145,23 +130,13 @@ export function AIAssistant({
         
         setSuggestion(result);
 
-        // Execução de Ações da Política (Policy Actions)
         if (currentIsAutoPilotOn) {
           if (result.shouldReset) {
-            toast({
-              title: "Prometeu: Otimização de Reinício",
-              description: result.finalDiagnosis || "Recompensa negativa detectada. Resetando para nova política...",
-              variant: "destructive",
-            });
             currentOnReset();
             return;
           }
 
           if (result.recommendedReactionMode !== currentSettings.reactionMode) {
-            toast({
-              title: "Prometeu: Ajuste de Ciclo",
-              description: `Alternando combustível para ${result.recommendedReactionMode}.`,
-            });
             currentOnModeChange(result.recommendedReactionMode);
             return;
           }
@@ -189,7 +164,7 @@ export function AIAssistant({
       }
     };
 
-    const intervalId = setInterval(runAnalysisCycle, 6000); // Step de 6 segundos
+    const intervalId = setInterval(runAnalysisCycle, 6000); 
     return () => clearInterval(intervalId);
   }, [isSimulating]);
 
@@ -201,6 +176,26 @@ export function AIAssistant({
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border bg-slate-950/80 p-3 space-y-3 border-primary/20 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-primary uppercase tracking-tighter flex items-center gap-1">
+            <Trophy className="h-3 w-3 text-amber-400" />
+            Reward Score (Gym-TORAX)
+          </span>
+          <span className={`text-xs font-mono font-bold ${currentReward > 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {currentReward.toFixed(2)}
+          </span>
+        </div>
+        <Progress 
+          value={Math.min(100, Math.max(0, (currentReward + 50)))} 
+          className="h-1 bg-slate-800 [&>div]:bg-amber-400" 
+        />
+        <div className="flex justify-between text-[8px] font-mono text-muted-foreground uppercase">
+          <span>Penalidade Caos</span>
+          <span>Bônus KAM</span>
+        </div>
+      </div>
+
       <div className="rounded-lg border bg-slate-950/60 p-3 space-y-2 border-primary/20">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold text-primary uppercase tracking-tighter flex items-center gap-1">
@@ -254,7 +249,7 @@ export function AIAssistant({
             <BrainCircuit className="h-3 w-3" />
             PROMETEU (RL POLICY)
           </Label>
-          <p className="text-[10px] text-muted-foreground italic tracking-tight uppercase">Reinforcement Learning Mode</p>
+          <p className="text-[10px] text-muted-foreground italic tracking-tight uppercase">Deep Reinforcement Learning</p>
         </div>
         <Switch
           id="autopilot-switch"
@@ -266,7 +261,7 @@ export function AIAssistant({
       {isLoading && (
         <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          <span className="text-[10px] font-bold text-primary uppercase animate-pulse tracking-tighter">Calculando Função de Recompensa...</span>
+          <span className="text-[10px] font-bold text-primary uppercase animate-pulse tracking-tighter">Otimizando Gradiente de Política...</span>
         </div>
       )}
 
@@ -276,9 +271,9 @@ export function AIAssistant({
           
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Relatório Científico (RL)</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Relatório JAX/PlasmaPy</span>
               <Badge variant="outline" className="text-[9px] h-4 uppercase border-primary/30">
-                Policy Optimized
+                KAM Optimized
               </Badge>
             </div>
             <Separator className="bg-primary/10" />
@@ -304,7 +299,7 @@ export function AIAssistant({
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
                 <TrendingUp className="h-3 w-3" />
-                Viabilidade e Produto Triplo:
+                Análise de Lawson:
               </div>
               <p className="text-[11px] leading-relaxed text-slate-300 italic bg-slate-900/40 p-2 rounded border border-white/5">
                 {suggestion.viabilityAnalysis}
@@ -312,7 +307,7 @@ export function AIAssistant({
             </div>
 
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Estabilidade e Disrupção:</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase">Caos e Entropia:</p>
               <p className="text-[11px] leading-relaxed text-slate-300">
                 {suggestion.stabilityEvaluation}
               </p>
@@ -330,13 +325,6 @@ export function AIAssistant({
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {!isSimulating && (
-        <div className="rounded-lg border border-dashed border-primary/20 p-4 text-center space-y-2">
-          <p className="text-[10px] text-muted-foreground uppercase font-bold">Observation Space: Idle</p>
-          <p className="text-[11px] text-slate-400 italic">Aguardando ativação do ambiente para iniciar otimização da política.</p>
         </div>
       )}
     </div>

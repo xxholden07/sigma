@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar";
-import type { Particle, FusionFlash, SimulationRun, ReactionMode } from "@/lib/simulation-types";
+import type { Particle, FusionFlash, SimulationRun, ReactionMode, TelemetrySnapshot } from "@/lib/simulation-types";
 import {
   INITIAL_PARTICLE_COUNT,
   INITIAL_TEMPERATURE,
@@ -13,6 +13,7 @@ import {
   PARTICLE_RADIUS,
   SIMULATION_WIDTH,
   SIMULATION_HEIGHT,
+  PHI,
 } from "@/lib/simulation-constants";
 import { SimulationCanvas } from "./simulation-canvas";
 import { ControlPanel } from "./control-panel";
@@ -24,7 +25,8 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Microscope, Zap, ShieldAlert, Play } from "lucide-react";
+import { Microscope, Zap, ShieldAlert, Play, AlertTriangle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   const particles: Particle[] = [];
@@ -44,6 +46,7 @@ function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
 export function FusionReactorDashboard() {
   const { firestore, auth } = useFirebase();
   const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
 
   const [isSimulating, setIsSimulating] = useState(false);
   const [settings, setSettings] = useState({
@@ -65,10 +68,13 @@ export function FusionReactorDashboard() {
     qFactor: 0,
     lyapunovExponent: 0,
     magneticSafetyFactorQ: 1.0,
+    wallIntegrity: 100,
+    aiReward: 0,
   });
   
   const [peakFusionRate, setPeakFusionRate] = useState(0);
-  const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
+  const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
+  const [confinementPenalty, setConfinementPenalty] = useState(0);
 
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -142,6 +148,7 @@ export function FusionReactorDashboard() {
     
     setTelemetryHistory([]);
     setPeakFusionRate(0);
+    setConfinementPenalty(0);
 
     setTelemetry({
       totalEnergyGenerated: 0,
@@ -154,6 +161,8 @@ export function FusionReactorDashboard() {
       qFactor: 0,
       lyapunovExponent: 0,
       magneticSafetyFactorQ: 1.0,
+      wallIntegrity: 100,
+      aiReward: 0,
     });
     
     simulationTimeStartRef.current = performance.now();
@@ -165,6 +174,51 @@ export function FusionReactorDashboard() {
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
   }, []);
+
+  // Mecânica de Turbulência Dinâmica
+  useEffect(() => {
+    if (!isSimulating) return;
+
+    const turbulenceInterval = setInterval(() => {
+      if (Math.random() > 0.8) {
+        toast({
+          title: "ALERTA DE TURBULÊNCIA",
+          description: "Pico de instabilidade magnética detectado! Estabilizando...",
+          variant: "destructive",
+        });
+        
+        // Efeito físico imediato
+        simulationStateRef.current.particles.forEach(p => {
+          p.vx += (Math.random() - 0.5) * 10;
+          p.vy += (Math.random() - 0.5) * 10;
+        });
+      }
+    }, 10000);
+
+    return () => clearInterval(turbulenceInterval);
+  }, [isSimulating, toast]);
+
+  // Degradação de Componentes por Calor
+  useEffect(() => {
+    if (!isSimulating) return;
+    
+    const degradationInterval = setInterval(() => {
+        if (settings.temperature > 170) {
+            setConfinementPenalty(p => Math.min(0.5, p + 0.01));
+            if (Math.random() > 0.9) {
+                toast({
+                    title: "DEGRADAÇÃO TÉRMICA",
+                    description: "Bobinas magnéticas superaquecidas. Perda de eficiência de confinamento.",
+                    variant: "destructive"
+                });
+            }
+        } else if (settings.temperature < 140) {
+            setConfinementPenalty(p => Math.max(0, p - 0.01));
+        }
+    }, 2000);
+
+    return () => clearInterval(degradationInterval);
+  }, [isSimulating, settings.temperature, toast]);
 
   const handleTemperatureChange = useCallback((newTemp: number) => {
     setSettings(s => ({...s, temperature: newTemp}));
@@ -198,6 +252,9 @@ export function FusionReactorDashboard() {
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
       const { confinement, energyThreshold, reactionMode, temperature } = settings;
 
+      // Aplicar penalidade de degradacao
+      const effectiveConfinement = Math.max(0, confinement - confinementPenalty);
+
       let sumVx = 0, sumVy = 0;
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
@@ -207,8 +264,8 @@ export function FusionReactorDashboard() {
         const tempForce = (temperature / 100) * 0.1;
 
         if (distance > 1) {
-            p.vx += (dx / distance) * (confinement * 0.5) + (Math.random() - 0.5) * tempForce;
-            p.vy += (dy / distance) * (confinement * 0.5) + (Math.random() - 0.5) * tempForce;
+            p.vx += (dx / distance) * (effectiveConfinement * 0.5) + (Math.random() - 0.5) * tempForce;
+            p.vy += (dy / distance) * (effectiveConfinement * 0.5) + (Math.random() - 0.5) * tempForce;
         }
 
         p.x += p.vx;
@@ -290,7 +347,7 @@ export function FusionReactorDashboard() {
 
     animationFrameId = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [settings, isSimulating]);
+  }, [settings, isSimulating, confinementPenalty]);
   
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -305,52 +362,59 @@ export function FusionReactorDashboard() {
 
             if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
                 newFusionRate = simulationStateRef.current.fusionsInLastSecond;
-                
                 const energyInPerSecond = (settings.temperature * settings.confinement * settings.initialParticleCount * 0.05) + 1;
                 const energyOutPerSecond = newFusionRate * (settings.reactionMode === 'DT' ? DT_FUSION_ENERGY_MEV : DHE3_FUSION_ENERGY_MEV);
-                
                 instantaneousQ = parseFloat((energyOutPerSecond / energyInPerSecond).toFixed(2));
-
                 simulationStateRef.current.fusionsInLastSecond = 0;
                 lastFusionRateUpdateTime.current = currentTime;
             }
 
             const duration = (performance.now() - simulationTimeStartRef.current) / 1000;
-            const totalKE = particles.reduce((sum, p) => sum + (0.5 * (p.vx * p.vx + p.vy * p.vy)), 0);
-            const avgKE = particles.length > 0 ? totalKE / particles.length : 0;
-            
             const rawLyapunov = (simulationStateRef.current.velocityVariance / 5) - (settings.confinement * 2);
             const lyapunov = parseFloat(rawLyapunov.toFixed(3));
-            
-            // Fator de Segurança q baseado no confinamento (simulando Teoria KAM)
-            const baseQ = 1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50));
-            const magSafetyQ = parseFloat(baseQ.toFixed(3));
+            const magSafetyQ = parseFloat((1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50))).toFixed(3));
+
+            // Calculo de Dano por Neutrons (Apenas ciclo D-T)
+            let newWallIntegrity = prev.wallIntegrity;
+            if (settings.reactionMode === 'DT' && newFusionRate > 5) {
+                newWallIntegrity = Math.max(0, prev.wallIntegrity - (newFusionRate * 0.01));
+                if (newWallIntegrity === 0) {
+                    toast({ title: "FALHA ESTRUTURAL", description: "Blindagem do reator comprometida por nêutrons.", variant: "destructive"});
+                    resetSimulation();
+                }
+            }
+
+            // Calculo de Recompensa IA (Reward Shaping)
+            const kamBonus = Math.exp(-Math.abs(magSafetyQ - PHI)) * 5;
+            const chaosPenalty = lyapunov > 0 ? lyapunov * 10 : 0;
+            const survivalReward = 1.0;
+            const energyPenalty = (settings.temperature * settings.confinement * 0.02);
+            const currentReward = survivalReward + kamBonus - chaosPenalty - energyPenalty;
 
             setPeakFusionRate(pfr => Math.max(pfr, newFusionRate));
 
             return {
+                ...prev,
                 totalEnergyGenerated: totalEnergyGeneratedRef.current,
                 particleCount: particles.length,
                 fusionRate: newFusionRate,
                 simulationDuration: duration,
-                relativeTemperature: settings.temperature,
-                fusionEfficiency: Math.min((instantaneousQ / 1.5) * 100, 100),
-                averageKineticEnergy: avgKE,
                 qFactor: instantaneousQ,
                 lyapunovExponent: lyapunov,
                 magneticSafetyFactorQ: magSafetyQ,
+                wallIntegrity: newWallIntegrity,
+                aiReward: currentReward
             };
         });
     }, 200);
     return () => clearInterval(intervalId);
-  }, [settings, isSimulating]);
+  }, [settings, isSimulating, resetSimulation, toast]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
         if (!isSimulating) return;
-
         setTelemetry(current => {
-            const snapshot = {
+            const snapshot: TelemetrySnapshot = {
                 simulationDurationSeconds: parseFloat(current.simulationDuration.toFixed(1)),
                 relativeTemperature: settings.temperature,
                 confinement: settings.confinement,
@@ -360,14 +424,15 @@ export function FusionReactorDashboard() {
                 qFactor: current.qFactor,
                 lyapunovExponent: current.lyapunovExponent,
                 magneticSafetyFactorQ: current.magneticSafetyFactorQ,
+                aiReward: current.aiReward,
+                wallIntegrity: current.wallIntegrity
             };
-
-            setTelemetryHistory(prev => [...prev, snapshot].slice(-20));
+            setTelemetryHistory(prev => [...prev, snapshot].slice(-30));
             return current;
         });
     }, 500);
     return () => clearInterval(intervalId);
-  }, [settings.temperature, settings.confinement, isSimulating]);
+  }, [settings, isSimulating]);
 
   return (
     <SidebarProvider defaultOpen>
@@ -376,21 +441,21 @@ export function FusionReactorDashboard() {
           <FusionIcon className="h-7 w-7 text-primary animate-pulse" />
           <div className="flex flex-col">
             <h1 className="font-headline text-lg font-bold tracking-tight sm:text-xl text-primary leading-none">FusionFlow Reactor</h1>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">Consoles de Teste Escalar</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">Unidade de Controle JAX / DeepMind</p>
           </div>
           
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end gap-0.5 px-3 py-1 rounded-md border bg-slate-900/50">
-              <span className="text-[8px] uppercase text-muted-foreground font-bold">Total de Tentativas</span>
+              <span className="text-[8px] uppercase text-muted-foreground font-bold">Episodes RL</span>
               <div className="flex items-center gap-1">
                 <Microscope className="h-3 w-3 text-primary" />
                 <span className="text-xs font-mono font-bold text-primary">{runs?.length || 0}</span>
               </div>
             </div>
 
-            <Badge variant={telemetry.qFactor >= 1.0 ? "default" : "outline"} className="hidden sm:flex h-8 gap-2 border-primary/20 transition-all">
-              <Zap className={`h-3 w-3 ${telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary"}`} />
-              STATUS: {telemetry.qFactor >= 1.0 ? "IGNIÇÃO (Q > 1)" : "FASE EXPERIMENTAL"}
+            <Badge variant={telemetry.qFactor >= 1.0 ? "default" : "outline"} className={`hidden sm:flex h-8 gap-2 border-primary/20 transition-all ${telemetry.qFactor >= 5.0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : ''}`}>
+              <Zap className={`h-3 w-3 ${telemetry.qFactor >= 5.0 ? "text-amber-400 animate-bounce" : telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary"}`} />
+              {telemetry.qFactor >= 5.0 ? "IGNIÇÃO PLENA (Q > 5)" : telemetry.qFactor >= 1.0 ? "BREAKEVEN (Q > 1)" : "EXPERIMENTAL"}
             </Badge>
             <SidebarTrigger />
           </div>
@@ -398,7 +463,7 @@ export function FusionReactorDashboard() {
         <div className="flex flex-1 overflow-hidden">
           <Sidebar>
             <SidebarHeader className="border-b p-4 bg-slate-900/20">
-              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-primary/80">Laboratório de Fusão</h2>
+              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-primary/80">Laboratório TORAX</h2>
             </SidebarHeader>
             <SidebarContent className="p-0">
               <SidebarGroup>
@@ -419,11 +484,12 @@ export function FusionReactorDashboard() {
               </SidebarGroup>
               
               <SidebarGroup>
-                <SidebarGroupLabel>Assistente Científico (IA)</SidebarGroupLabel>
+                <SidebarGroupLabel>Agente Prometeu (RL)</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
                   <AIAssistant
                     telemetryHistory={telemetryHistory}
                     settings={settings}
+                    currentReward={telemetry.aiReward}
                     pastRuns={runs || []}
                     onTemperatureChange={handleTemperatureChange}
                     onConfinementChange={handleConfinementChange}
@@ -443,7 +509,7 @@ export function FusionReactorDashboard() {
               </SidebarGroup>
 
               <SidebarGroup>
-                <SidebarGroupLabel>Arquivo de Experimentos</SidebarGroupLabel>
+                <SidebarGroupLabel>Dataset de Treinamento</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
                   <SimulationHistoryPanel />
                 </SidebarGroupContent>
@@ -452,20 +518,28 @@ export function FusionReactorDashboard() {
           </Sidebar>
           <SidebarInset className="bg-slate-950">
             <div className="relative flex h-full w-full items-center justify-center p-4">
-              <div className="relative aspect-video w-full max-w-[1000px] overflow-hidden rounded-2xl border border-primary/30 bg-black shadow-[0_0_50px_-12px_rgba(59,130,246,0.5)] ring-1 ring-white/5">
+              <div className="relative aspect-video w-full max-w-[1000px] overflow-hidden rounded-2xl border border-primary/30 bg-black shadow-[0_0_80px_-20px_rgba(59,130,246,0.6)] ring-1 ring-white/10">
                 {!isSimulating && (
-                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm gap-4">
-                    <div className="flex flex-col items-center gap-2 text-center animate-in fade-in zoom-in duration-500">
-                      <ShieldAlert className="h-12 w-12 text-primary/60 mb-2" />
-                      <h2 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">Pronto para Ignição</h2>
-                      <p className="text-sm text-muted-foreground max-w-md italic">Aguardando definição de variáveis e comando de ignição para iniciar o pulso de plasma.</p>
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md gap-4">
+                    <div className="flex flex-col items-center gap-2 text-center animate-in fade-in zoom-in duration-700">
+                      <ShieldAlert className="h-16 w-16 text-primary/40 mb-2 animate-pulse" />
+                      <h2 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter shadow-primary/20 drop-shadow-2xl">Aguardando Pulso</h2>
+                      <p className="text-sm text-muted-foreground max-w-md italic">Defina a política inicial de controle e dispare a ignição para iniciar o treinamento do agente.</p>
                     </div>
-                    <Button size="lg" onClick={handleStartIgnition} className="h-14 px-8 text-lg font-bold gap-3 shadow-[0_0_30px_-5px_rgba(59,130,246,0.6)] group">
-                      <Play className="h-6 w-6 fill-current group-hover:scale-110 transition-transform" />
+                    <Button size="lg" onClick={handleStartIgnition} className="h-16 px-10 text-xl font-bold gap-4 shadow-[0_0_40px_-10px_rgba(59,130,246,0.8)] group hover:scale-105 transition-transform">
+                      <Play className="h-7 w-7 fill-current group-hover:scale-110 transition-transform" />
                       INICIAR IGNIÇÃO
                     </Button>
                   </div>
                 )}
+                
+                {confinementPenalty > 0 && (
+                    <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-red-500/20 border border-red-500/50 p-2 rounded animate-pulse">
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        <span className="text-[10px] font-bold text-red-500 uppercase">Perda de Eficiência Magnética</span>
+                    </div>
+                )}
+
                 <SimulationCanvas 
                     getParticles={() => simulationStateRef.current.particles}
                     getFlashes={() => simulationStateRef.current.flashes}
@@ -474,12 +548,11 @@ export function FusionReactorDashboard() {
                     magneticSafetyFactorQ={telemetry.magneticSafetyFactorQ}
                 />
                 <div className="absolute top-6 right-6 flex flex-col items-end gap-2 pointer-events-none">
-                  <div className="bg-black/60 backdrop-blur-md border border-primary/20 p-2 rounded-lg flex flex-col items-end">
-                    <span className="text-[10px] text-primary font-mono block mb-1">GANHO DE ENERGIA (Q)</span>
-                    <div className="text-xl font-mono font-bold text-white flex items-center gap-2">
+                  <div className={`backdrop-blur-md border p-3 rounded-lg flex flex-col items-end transition-all duration-500 ${telemetry.qFactor >= 1.0 ? 'bg-green-500/10 border-green-500/30' : 'bg-black/60 border-primary/20'}`}>
+                    <span className="text-[10px] text-primary font-mono block mb-1">PRODUTO TRIPLO (Q)</span>
+                    <div className="text-2xl font-mono font-bold text-white flex items-center gap-2">
                       {telemetry.qFactor.toFixed(2)}
-                      {telemetry.qFactor >= 1.0 && <Zap className="h-4 w-4 text-green-400 animate-pulse" />}
-                      {telemetry.qFactor < 1.0 && <ShieldAlert className="h-4 w-4 text-yellow-400" />}
+                      {telemetry.qFactor >= 1.0 && <Zap className="h-5 w-5 text-green-400 animate-pulse" />}
                     </div>
                   </div>
                 </div>

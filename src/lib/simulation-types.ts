@@ -33,3 +33,17 @@ export interface SimulationRun {
   finalEnergyThreshold: number;
   reactionMode: ReactionMode;
 }
+
+export interface TelemetrySnapshot {
+  simulationDurationSeconds: number;
+  relativeTemperature: number;
+  confinement: number;
+  fusionRate: number;
+  totalEnergyGenerated: number;
+  numParticles: number;
+  qFactor: number;
+  lyapunovExponent: number;
+  magneticSafetyFactorQ: number;
+  aiReward: number;
+  wallIntegrity: number;
+}
