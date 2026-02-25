@@ -29,6 +29,9 @@ const TelemetrySnapshotSchema = z.object({
   numParticles: z
     .number()
     .describe('The current number of particles in the simulation.'),
+  averageKineticEnergy: z
+    .number()
+    .describe('The average kinetic energy of particles in the simulation.').optional(), // Adicionado o campo de energia cinética média
 });
 
 const PlasmaOptimizationSuggestionInputSchema = z.object({
@@ -75,21 +78,21 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `You are an expert fusion reactor operator and plasma physicist. Your goal is to analyze the recent history of a D-T fusion reactor simulation and provide actionable advice to increase the fusion rate and energy output. By learning from the trend of changes, you can give more insightful recommendations.
+  prompt: `Você é um operador de reator de fusão e físico de plasma experiente. Seu objetivo é analisar o histórico recente de uma simulação de reator de fusão D-T e fornecer conselhos acionáveis para aumentar a taxa de fusão e a produção de energia. Ao aprender com a tendência das mudanças, você pode dar recomendações mais perspicazes.
 
-Here is the recent history of simulation metrics, from oldest to newest:
+Aqui está o histórico recente das métricas de simulação, do mais antigo para o mais novo:
 {{#each history}}
-- Snapshot at: {{{simulationDurationSeconds}}}s | Temp: {{{relativeTemperature}}} | Confinement: {{{confinement}}} | Fusion Rate: {{{fusionRate}}} f/s | Particle Count: {{{numParticles}}} | Total Energy: {{{totalEnergyGenerated}}} MeV
+- Snapshot em: {{{simulationDurationSeconds}}}s | Temp: {{{relativeTemperature}}} | Confinamento: {{{confinement}}} | Taxa de Fusão: {{{fusionRate}}} f/s | Contagem de Partículas: {{{numParticles}}} | Energia Total: {{{totalEnergyGenerated}}} MeV | Energia Cinética Média: {{{averageKineticEnergy}}} (unidade arbitrária)
 {{/each}}
 
-Based on this history, analyze the trends. For example, if an increase in temperature led to a higher fusion rate, recommend further increases. If it led to instability (e.g., lower particle count without much fusion increase), recommend a decrease or stronger confinement. Provide a recommendation for the relative temperature and confinement strength.
+Com base neste histórico, analise as tendências. Por exemplo, se um aumento na temperatura levou a uma taxa de fusão maior, recomende novos aumentos, **explicando o impacto positivo observado na taxa de fusão ou energia total**. Se levou à instabilidade (por exemplo, menor contagem de partículas sem muito aumento na fusão), recomende uma diminuição ou confinamento mais forte, **justificando com o impacto negativo observado**. Forneça uma recomendação para a temperatura relativa e a força de confinamento.
 
-Consider the following:
-- Higher temperatures generally lead to higher collision energy, increasing the likelihood of overcoming the Coulomb barrier, but too high might lead to particles escaping confinement more easily.
-- Stronger confinement keeps particles denser, increasing collision frequency, but excessive confinement might lead to instabilities or simply prevent necessary particle movement for optimal interaction.
-- A healthy fusion rate implies a good balance between temperature and confinement.
+Considere o seguinte:
+- Temperaturas mais altas geralmente levam a maior energia de colisão, aumentando a probabilidade de superar a barreira de Coulomb, mas muito altas podem fazer com que as partículas escapem do confinamento mais facilmente.
+- O confinamento mais forte mantém as partículas mais densas, aumentando a frequência de colisão, mas o confinamento excessivo pode levar a instabilidades ou simplesmente impedir o movimento necessário das partículas para uma interação ideal.
+- Uma taxa de fusão saudável implica um bom equilíbrio entre temperatura e confinamento.
 
-Provide your recommendation in the specified JSON format. Each recommendation should include a clear 'increase', 'decrease', or 'maintain' directive, along with a concise reason based on the observed trends. Also, provide an overall insight or a more detailed recommendation.`,
+Forneça sua recomendação no formato JSON especificado. Cada recomendação deve incluir uma diretriz clara de 'increase', 'decrease' ou 'maintain', juntamente com uma razão concisa baseada nas tendências observadas, **mencionando explicitamente as mudanças numéricas na taxa de fusão ou energia total se elas influenciarem sua decisão**. Além disso, forneça uma visão geral ou uma recomendação mais detalhada.`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(

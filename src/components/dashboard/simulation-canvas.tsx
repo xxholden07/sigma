@@ -98,7 +98,7 @@ export function SimulationCanvas({ getParticles, getFlashes }: SimulationCanvasP
 
   return (
     <div ref={containerRef} className="absolute inset-0 h-full w-full">
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} style={{ backgroundColor: "hsl(var(--background))" }} />
     </div>
   );
 }

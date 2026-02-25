@@ -1,8 +1,19 @@
 "use client";
 
-import { BarChart, Atom, Zap, Gauge, Target } from "lucide-react";
+import { BarChart, Atom, Zap, Gauge, Target, Download } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button"; // Importar o componente Button
+
+interface TelemetrySnapshot {
+  simulationDurationSeconds: number;
+  relativeTemperature: number;
+  confinement: number;
+  fusionRate: number;
+  totalEnergyGenerated: number;
+  numParticles: number;
+  averageKineticEnergy?: number;
+}
 
 interface TelemetryPanelProps {
   telemetry: {
@@ -11,7 +22,9 @@ interface TelemetryPanelProps {
     fusionRate: number;
     relativeTemperature: number;
     fusionEfficiency: number;
+    averageKineticEnergy: number; // Adicionado aqui para exibição no painel
   };
+  telemetryHistory: TelemetrySnapshot[]; // Adicionado prop para o histórico
 }
 
 const TelemetryItem = ({ icon, label, value, unit }: { icon: React.ReactNode, label: string, value: string | number, unit?: string }) => (
@@ -27,7 +40,20 @@ const TelemetryItem = ({ icon, label, value, unit }: { icon: React.ReactNode, la
 );
 
 
-export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
+export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelProps) {
+    const handleExportData = () => {
+        const dataStr = JSON.stringify(telemetryHistory, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `simulacao_fusao_telemetria_${new Date().toISOString()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -61,6 +87,12 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
             value={telemetry.fusionRate}
             unit="f/s"
         />
+        <TelemetryItem
+            icon={<BarChart className="h-4 w-4" />}
+            label="Avg Kinetic Energy"
+            value={telemetry.averageKineticEnergy.toFixed(2)}
+            unit="unit"
+        />
         <div className="space-y-2 pt-2">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -75,6 +107,9 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
             </div>
             <Progress value={telemetry.fusionEfficiency} className="h-2" />
         </div>
+        <Button onClick={handleExportData} className="w-full mt-4">
+            <Download className="mr-2 h-4 w-4" /> Exportar Dados
+        </Button>
       </CardContent>
     </Card>
   );

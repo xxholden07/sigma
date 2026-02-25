@@ -30,6 +30,11 @@ function createInitialParticles(): Particle[] {
   }));
 }
 
+// Função auxiliar para calcular a energia cinética de uma partícula
+function getKineticEnergy(particle: Particle): number {
+  return 0.5 * (particle.vx * particle.vx + particle.vy * particle.vy); // Assumindo massa unitária para simplificar
+}
+
 export function FusionReactorDashboard() {
   const [settings, setSettings] = useState({ temperature: INITIAL_TEMPERATURE, confinement: INITIAL_CONFINEMENT });
   const [telemetry, setTelemetry] = useState({
@@ -39,6 +44,7 @@ export function FusionReactorDashboard() {
     fusionRate: 0,
     relativeTemperature: INITIAL_TEMPERATURE,
     fusionEfficiency: 0,
+    averageKineticEnergy: 0, // Adicionado ao estado inicial da telemetria
   });
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
@@ -73,6 +79,7 @@ export function FusionReactorDashboard() {
       fusionRate: 0,
       relativeTemperature: INITIAL_TEMPERATURE,
       fusionEfficiency: 0,
+      averageKineticEnergy: 0, // Adicionado ao estado inicial da telemetria no reset
     };
     setTelemetry(initialTelemetry);
     
@@ -198,6 +205,16 @@ export function FusionReactorDashboard() {
             }
 
             const simulationDuration = (performance.now() - simulationTimeStartRef.current) / 1000;
+            
+            // Calcular a energia cinética média
+            let totalKineticEnergy = 0;
+            simulationStateRef.current.particles.forEach(p => {
+              totalKineticEnergy += getKineticEnergy(p);
+            });
+            const averageKineticEnergy = simulationStateRef.current.particles.length > 0 
+              ? totalKineticEnergy / simulationStateRef.current.particles.length 
+              : 0;
+
             return {
                 totalEnergyGenerated: totalEnergyGeneratedRef.current,
                 particleCount: simulationStateRef.current.particles.length,
@@ -205,6 +222,7 @@ export function FusionReactorDashboard() {
                 simulationDuration: simulationDuration,
                 relativeTemperature: settings.temperature,
                 fusionEfficiency: Math.min((newFusionRate / 15.0) * 100, 100),
+                averageKineticEnergy: parseFloat(averageKineticEnergy.toFixed(2)), // Adicionado
             };
         });
     }, 200);
@@ -221,6 +239,7 @@ export function FusionReactorDashboard() {
                 fusionRate: currentTelemetry.fusionRate,
                 totalEnergyGenerated: parseFloat(currentTelemetry.totalEnergyGenerated.toFixed(1)),
                 numParticles: currentTelemetry.particleCount,
+                averageKineticEnergy: currentTelemetry.averageKineticEnergy, // Adicionado
             };
 
             setTelemetryHistory(prevHistory => {
@@ -256,7 +275,7 @@ export function FusionReactorDashboard() {
                 onConfinementChange={handleConfinementChange}
                 onReset={resetSimulation}
               />
-              <TelemetryPanel telemetry={telemetry} />
+              <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} /> {/* Passando telemetryHistory */}
               <AIAssistant
                 telemetryHistory={telemetryHistory}
                 settings={settings}
@@ -267,7 +286,7 @@ export function FusionReactorDashboard() {
           </Sidebar>
           <SidebarInset>
             <div className="relative h-full w-full p-4">
-              <div className="relative mx-auto aspect-video max-h-full w-full max-w-[800px] overflow-hidden rounded-lg border shadow-lg">
+              <div className="relative mx-auto aspect-video max-h-full w-full max-w-[800px] overflow-hidden rounded-lg border shadow-lg bg-background">
                 <SimulationCanvas 
                     getParticles={getParticles}
                     getFlashes={getFlashes}

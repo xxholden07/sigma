@@ -18,6 +18,7 @@ interface TelemetrySnapshot {
   fusionRate: number;
   totalEnergyGenerated: number;
   numParticles: number;
+  averageKineticEnergy?: number; // Adicionado o campo de energia cinética média (opcional, pois pode não estar sempre presente no histórico antigo)
 }
 
 interface AIAssistantProps {
@@ -75,8 +76,8 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
         });
         currentSetSuggestion(result);
 
-        const tempAdjustment = 10;
-        const confinementAdjustment = 0.1;
+        const tempAdjustment = 5; // Alterado de 10 para 5
+        const confinementAdjustment = 0.05; // Alterado de 0.1 para 0.05
 
         let newTemp = currentSettings.temperature;
         if (result.temperatureRecommendation === 'increase') {
