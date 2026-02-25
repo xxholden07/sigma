@@ -40,10 +40,6 @@ function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   return particles;
 }
 
-function getKineticEnergy(particle: Particle): number {
-  return 0.5 * (particle.vx * particle.vx + particle.vy * particle.vy);
-}
-
 export function FusionReactorDashboard() {
   const { firestore, auth } = useFirebase();
   const { user, isUserLoading } = useUser();
@@ -64,7 +60,7 @@ export function FusionReactorDashboard() {
     relativeTemperature: INITIAL_TEMPERATURE,
     fusionEfficiency: 0,
     averageKineticEnergy: 0,
-    qFactor: 0, // Fator Q: Energia Out / Energia In
+    qFactor: 0,
   });
   
   const [peakFusionRate, setPeakFusionRate] = useState(0);
@@ -180,16 +176,18 @@ export function FusionReactorDashboard() {
     
     const gameLoop = () => {
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
-      const { confinement, energyThreshold, reactionMode } = settings;
+      const { confinement, energyThreshold, reactionMode, temperature } = settings;
 
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
         const dy = (SIMULATION_HEIGHT / 2) - p.y;
         const distance = Math.hypot(dx, dy);
         
+        const tempForce = (temperature / 100) * 0.1;
+
         if (distance > 1) {
-            p.vx += (dx / distance) * (confinement * 0.5);
-            p.vy += (dy / distance) * (confinement * 0.5);
+            p.vx += (dx / distance) * (confinement * 0.5) + (Math.random() - 0.5) * tempForce;
+            p.vy += (dy / distance) * (confinement * 0.5) + (Math.random() - 0.5) * tempForce;
         }
 
         p.x += p.vx;
@@ -271,6 +269,8 @@ export function FusionReactorDashboard() {
   useEffect(() => {
     const intervalId = setInterval(() => {
         const currentTime = performance.now();
+        const particles = simulationStateRef.current.particles;
+
         setTelemetry(prev => {
             let newFusionRate = prev.fusionRate;
             if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
@@ -283,16 +283,19 @@ export function FusionReactorDashboard() {
             const energyIn = settings.temperature * settings.confinement * settings.initialParticleCount * 0.1;
             const qFactor = energyIn > 0 ? totalEnergyGeneratedRef.current / energyIn : 0;
 
+            const totalKE = particles.reduce((sum, p) => sum + (0.5 * (p.vx * p.vx + p.vy * p.vy)), 0);
+            const avgKE = particles.length > 0 ? totalKE / particles.length : 0;
+
             setPeakFusionRate(pfr => Math.max(pfr, newFusionRate));
 
             return {
                 totalEnergyGenerated: totalEnergyGeneratedRef.current,
-                particleCount: simulationStateRef.current.particles.length,
+                particleCount: particles.length,
                 fusionRate: newFusionRate,
                 simulationDuration: duration,
                 relativeTemperature: settings.temperature,
                 fusionEfficiency: Math.min((qFactor / 1.5) * 100, 100),
-                averageKineticEnergy: 0,
+                averageKineticEnergy: avgKE,
                 qFactor: parseFloat(qFactor.toFixed(2)),
             };
         });
@@ -311,6 +314,7 @@ export function FusionReactorDashboard() {
                 totalEnergyGenerated: parseFloat(current.totalEnergyGenerated.toFixed(1)),
                 numParticles: current.particleCount,
                 qFactor: current.qFactor,
+                averageKineticEnergy: current.averageKineticEnergy,
             };
 
             setTelemetryHistory(prev => [...prev, snapshot].slice(-20));
