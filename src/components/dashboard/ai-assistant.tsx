@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowDown, ArrowUp, Bot, Loader2, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, Loader2, Minus, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -34,9 +35,9 @@ interface AIAssistantProps {
 }
 
 const recommendationIcons = {
-  increase: <ArrowUp className="h-5 w-5 text-green-400" />,
-  decrease: <ArrowDown className="h-5 w-5 text-orange-400" />,
-  maintain: <Minus className="h-5 w-5 text-gray-400" />,
+  increase: <ArrowUp className="h-3 w-3 text-green-400" />,
+  decrease: <ArrowDown className="h-3 w-3 text-orange-400" />,
+  maintain: <Minus className="h-3 w-3 text-gray-400" />,
 };
 
 export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, onConfinementChange }: AIAssistantProps) {
@@ -51,9 +52,7 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
   });
 
   useEffect(() => {
-    if (!isAutoPilotOn) {
-      return;
-    }
+    if (!isAutoPilotOn) return;
 
     const runAutoPilotCycle = async () => {
       const { 
@@ -67,9 +66,7 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
         setIsAutoPilotOn: currentSetIsAutoPilotOn
       } = stableProps.current;
 
-      if (currentHistory.length < 5) {
-        return;
-      }
+      if (currentHistory.length < 5) return;
 
       currentSetIsLoading(true);
       try {
@@ -83,34 +80,23 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
         const confinementAdjustment = 0.05;
 
         let newTemp = currentSettings.temperature;
-        if (result.temperatureRecommendation === 'increase') {
-          newTemp += tempAdjustment;
-        } else if (result.temperatureRecommendation === 'decrease') {
-          newTemp -= tempAdjustment;
-        }
+        if (result.temperatureRecommendation === 'increase') newTemp += tempAdjustment;
+        else if (result.temperatureRecommendation === 'decrease') newTemp -= tempAdjustment;
 
         let newConfinement = currentSettings.confinement;
-        if (result.confinementRecommendation === 'increase') {
-          newConfinement += confinementAdjustment;
-        } else if (result.confinementRecommendation === 'decrease') {
-          newConfinement -= confinementAdjustment;
-        }
+        if (result.confinementRecommendation === 'increase') newConfinement += confinementAdjustment;
+        else if (result.confinementRecommendation === 'decrease') newConfinement -= confinementAdjustment;
 
         const finalTemp = Math.max(0, Math.min(200, newTemp));
         const finalConfinement = parseFloat(Math.max(0, Math.min(1, newConfinement)).toFixed(2));
 
         currentOnTempChange(finalTemp);
         currentOnConfChange(finalConfinement);
-
-        currentToast({
-          title: "Piloto Automático Ajustado",
-          description: `Temp: ${finalTemp}, Confinamento: ${finalConfinement}.`,
-        });
       } catch (error) {
         currentToast({
           variant: "destructive",
           title: "Erro no Piloto Automático",
-          description: "Não foi possível obter a sugestão. Desativando.",
+          description: "Perda de conexão com a IA.",
         });
         currentSetIsAutoPilotOn(false);
       } finally {
@@ -119,21 +105,18 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
     };
 
     runAutoPilotCycle();
-    const intervalId = setInterval(runAutoPilotCycle, 5000);
-
+    const intervalId = setInterval(runAutoPilotCycle, 8000);
     return () => clearInterval(intervalId);
   }, [isAutoPilotOn]);
 
 
   const handleGetSuggestion = async () => {
     setIsLoading(true);
-    setSuggestion(null);
     try {
-      if (telemetryHistory.length === 0) {
+      if (telemetryHistory.length < 3) {
         toast({
-            variant: "default",
-            title: "Not enough data",
-            description: "Let the simulation run for a few seconds before getting a suggestion.",
+            title: "Dados Insuficientes",
+            description: "Aguarde o reator estabilizar para análise.",
         });
         setIsLoading(false);
         return;
@@ -146,76 +129,66 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "AI Assistant Error",
-        description: "Could not retrieve optimization suggestions. Please try again later.",
+        title: "Erro no Assistente",
+        description: "Não foi possível obter a sugestão.",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const renderRecommendation = (
-    title: string,
-    recommendation: "increase" | "decrease" | "maintain" | undefined,
-    reason: string | undefined
-  ) => (
-    <div className="flex items-start space-x-4 rounded-lg bg-background p-3">
-      <div className="flex-shrink-0">{recommendation && recommendationIcons[recommendation]}</div>
-      <div className="flex-1 space-y-1">
-        <p className="font-semibold text-sm capitalize">{title}</p>
-        <p className="text-sm text-muted-foreground">{reason || "No specific reason provided."}</p>
-      </div>
-    </div>
-  );
-
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
-        <div className="space-y-1.5">
-          <CardTitle className="text-lg font-headline">AI Assistant</CardTitle>
-          <CardDescription>Otimização manual ou automática.</CardDescription>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 p-3">
+        <div className="space-y-0.5">
+          <Label htmlFor="autopilot-switch" className="text-xs font-bold flex items-center gap-2">
+            <Zap className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+            PILOTO AUTOMÁTICO
+          </Label>
+          <p className="text-[10px] text-muted-foreground">Ajustes autônomos em tempo real.</p>
         </div>
-        <Bot className="h-6 w-6 text-muted-foreground" />
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center space-x-2 rounded-lg border p-3">
-          <div className="flex-1 space-y-1">
-            <Label htmlFor="autopilot-switch" className="font-semibold">
-              Piloto Automático
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Deixe a IA ajustar os parâmetros para atingir a fusão.
+        <Switch
+          id="autopilot-switch"
+          checked={isAutoPilotOn}
+          onCheckedChange={setIsAutoPilotOn}
+          disabled={isLoading && !isAutoPilotOn}
+        />
+      </div>
+
+      <Button onClick={handleGetSuggestion} disabled={isLoading || isAutoPilotOn} variant="secondary" className="w-full h-9 text-xs">
+        {isLoading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Bot className="mr-2 h-3 w-3" />}
+        Análise Manual
+      </Button>
+
+      {suggestion && (
+        <div className="rounded-lg border bg-card p-3 space-y-3">
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Recomendações IA</span>
+            <Badge variant="outline" className="text-[8px] h-4 uppercase">Modo {settings.reactionMode}</Badge>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5">{recommendationIcons[suggestion.temperatureRecommendation]}</div>
+              <div className="space-y-0.5 text-[11px]">
+                <p className="font-bold text-orange-400 uppercase">Temperatura</p>
+                <p className="text-muted-foreground leading-tight italic">{suggestion.temperatureReason}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5">{recommendationIcons[suggestion.confinementRecommendation]}</div>
+              <div className="space-y-0.5 text-[11px]">
+                <p className="font-bold text-blue-400 uppercase">Confinamento</p>
+                <p className="text-muted-foreground leading-tight italic">{suggestion.confinementReason}</p>
+              </div>
+            </div>
+          </div>
+          <div className="pt-2 border-t">
+            <p className="text-[11px] font-semibold text-foreground leading-relaxed">
+              "{suggestion.overallInsight}"
             </p>
           </div>
-          <Switch
-            id="autopilot-switch"
-            checked={isAutoPilotOn}
-            onCheckedChange={setIsAutoPilotOn}
-            disabled={isLoading && !isAutoPilotOn}
-          />
         </div>
-        <Button onClick={handleGetSuggestion} disabled={isLoading || isAutoPilotOn} className="w-full">
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-          {isLoading ? "Analisando..." : "Obter Sugestão"}
-        </Button>
-        {suggestion && (
-          <Card className="bg-secondary">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Relatório de Otimização</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="space-y-2">
-                {renderRecommendation("Temperatura", suggestion.temperatureRecommendation, suggestion.temperatureReason)}
-                {renderRecommendation("Confinamento", suggestion.confinementRecommendation, suggestion.confinementReason)}
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">Análise Geral:</h4>
-                <p className="text-muted-foreground">{suggestion.overallInsight}</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }

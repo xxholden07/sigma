@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar";
 import type { Particle, FusionFlash, SimulationRun, ReactionMode } from "@/lib/simulation-types";
 import {
   INITIAL_PARTICLE_COUNT,
@@ -22,25 +23,24 @@ import { FusionIcon } from "../icons/fusion-icon";
 import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
+import { Badge } from "@/components/ui/badge";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   if (mode === 'DD_DHe3') {
-    // Start with only Deuterium particles for the D-D / D-He3 cycle
     return Array.from({ length: count }, (_, i) => ({
       id: i,
       x: 200 + Math.random() * 400,
-      y: 150 + Math.random() * 450,
+      y: 150 + Math.random() * 300,
       vx: (Math.random() - 0.5) * 6,
       vy: (Math.random() - 0.5) * 6,
       type: 'D',
     }));
   }
 
-  // Default: D-T cycle
   return Array.from({ length: count }, (_, i) => ({
     id: i,
     x: 200 + Math.random() * 400,
-    y: 150 + Math.random() * 450,
+    y: 150 + Math.random() * 300,
     vx: (Math.random() - 0.5) * 6,
     vy: (Math.random() - 0.5) * 6,
     type: Math.random() > 0.5 ? 'D' : 'T',
@@ -62,6 +62,7 @@ export function FusionReactorDashboard() {
     initialParticleCount: INITIAL_PARTICLE_COUNT,
     reactionMode: 'DT' as ReactionMode,
   });
+  
   const [telemetry, setTelemetry] = useState({
     totalEnergyGenerated: 0,
     particleCount: settings.initialParticleCount,
@@ -71,6 +72,7 @@ export function FusionReactorDashboard() {
     fusionEfficiency: 0,
     averageKineticEnergy: 0,
   });
+  
   const [peakFusionRate, setPeakFusionRate] = useState(0);
   const [telemetryHistory, setTelemetryHistory] = useState<any[]>([]);
 
@@ -93,15 +95,15 @@ export function FusionReactorDashboard() {
   }, [isUserLoading, user, auth]);
 
   const handleSaveSimulation = useCallback(() => {
-    if (!user || !firestore) return;
+    if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
     const runData: Omit<SimulationRun, 'id'> = {
         userId: user.uid,
         createdAt: new Date().toISOString(),
-        durationSeconds: parseFloat(telemetry.simulationDuration.toFixed(1)),
-        totalEnergyGeneratedMeV: parseFloat(telemetry.totalEnergyGenerated.toFixed(1)),
+        durationSeconds: parseFloat(((performance.now() - simulationTimeStartRef.current) / 1000).toFixed(1)),
+        totalEnergyGeneratedMeV: parseFloat(totalEnergyGeneratedRef.current.toFixed(1)),
         peakFusionRate: peakFusionRate,
-        outcome: telemetry.fusionEfficiency > 75 ? 'High Yield' : telemetry.fusionEfficiency > 25 ? 'Stable' : 'Suboptimal',
+        outcome: (totalEnergyGeneratedRef.current / 100) > 75 ? 'High Yield' : (totalEnergyGeneratedRef.current / 100) > 25 ? 'Stable' : 'Suboptimal',
         initialParticleCount: settings.initialParticleCount,
         initialTemperature: INITIAL_TEMPERATURE,
         initialConfinement: INITIAL_CONFINEMENT,
@@ -111,7 +113,7 @@ export function FusionReactorDashboard() {
 
     const runsCollectionRef = collection(firestore, 'users', user.uid, 'simulationRuns');
     addDocumentNonBlocking(runsCollectionRef, runData);
-  }, [user, firestore, telemetry, peakFusionRate, settings]);
+  }, [user, firestore, peakFusionRate, settings]);
 
   const resetSimulation = useCallback((newMode?: ReactionMode) => {
     handleSaveSimulation();
@@ -123,7 +125,7 @@ export function FusionReactorDashboard() {
       temperature: INITIAL_TEMPERATURE,
       confinement: INITIAL_CONFINEMENT,
       energyThreshold: ENERGY_THRESHOLD,
-      initialParticleCount: INITIAL_PARTICLE_COUNT,
+      initialParticleCount: settings.initialParticleCount,
       reactionMode,
     };
     setSettings(newSettings);
@@ -140,7 +142,7 @@ export function FusionReactorDashboard() {
     setTelemetryHistory([]);
     setPeakFusionRate(0);
 
-    const initialTelemetry = {
+    setTelemetry({
       totalEnergyGenerated: 0,
       particleCount: newSettings.initialParticleCount,
       simulationDuration: 0,
@@ -148,8 +150,7 @@ export function FusionReactorDashboard() {
       relativeTemperature: newSettings.temperature,
       fusionEfficiency: 0,
       averageKineticEnergy: 0,
-    };
-    setTelemetry(initialTelemetry);
+    });
     
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
@@ -162,12 +163,12 @@ export function FusionReactorDashboard() {
     if (newTemp > oldTemp) {
         const diff = newTemp - oldTemp;
         simulationStateRef.current.particles.forEach(p => {
-            p.vx += (Math.random() - 0.5) * 0.5 * diff;
-            p.vy += (Math.random() - 0.5) * 0.5 * diff;
+            p.vx += (Math.random() - 0.5) * 0.1 * diff;
+            p.vy += (Math.random() - 0.5) * 0.1 * diff;
         });
     } else if (newTemp < oldTemp) {
         const diff = oldTemp - newTemp;
-        const factor = Math.pow(0.98, diff);
+        const factor = Math.pow(0.99, diff);
         simulationStateRef.current.particles.forEach(p => {
             p.vx *= factor;
             p.vy *= factor;
@@ -198,15 +199,14 @@ export function FusionReactorDashboard() {
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
       const { confinement, energyThreshold, reactionMode } = settings;
 
-      // Apply confinement and wall collision physics
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
         const dy = (SIMULATION_HEIGHT / 2) - p.y;
         const distance = Math.hypot(dx, dy);
         
         if (distance > 1) {
-            p.vx += (dx / distance) * confinement;
-            p.vy += (dy / distance) * confinement;
+            p.vx += (dx / distance) * (confinement * 0.5);
+            p.vy += (dy / distance) * (confinement * 0.5);
         }
 
         p.x += p.vx;
@@ -240,7 +240,6 @@ export function FusionReactorDashboard() {
               let createsFlash = false;
               let reactionType = 'none';
 
-              // Determine reaction type based on current mode
               if (reactionMode === 'DT' && p1.type !== p2.type && (p1.type === 'D' || p1.type === 'T')) {
                 reactionType = 'DT';
               } else if (reactionMode === 'DD_DHe3') {
@@ -251,16 +250,14 @@ export function FusionReactorDashboard() {
                 }
               }
 
-              // Process the determined reaction
               if (reactionType === 'DT') {
                 energyReleased = DT_FUSION_ENERGY_MEV;
                 createsFlash = true;
                 particlesToAdd.push(
-                  { id: simulationStateRef.current.nextParticleId++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 },
-                  { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'T', vx: -1, vy: -1 }
+                  { id: simulationStateRef.current.nextParticleId++, x: 50 + Math.random() * 50, y: 50 + Math.random() * 50, type: 'D', vx: 1, vy: 1 },
+                  { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 50, y: SIMULATION_HEIGHT - 50, type: 'T', vx: -1, vy: -1 }
                 );
               } else if (reactionType === 'DD') {
-                // D-D fusion creates a He3 particle, no energy flash for this step
                 particlesToAdd.push({
                   id: simulationStateRef.current.nextParticleId++,
                   x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2,
@@ -270,23 +267,22 @@ export function FusionReactorDashboard() {
               } else if (reactionType === 'DHe3') {
                 energyReleased = DHE3_FUSION_ENERGY_MEV;
                 createsFlash = true;
-                // Replenish with new Deuterium particles
                 particlesToAdd.push(
-                  { id: simulationStateRef.current.nextParticleId++, x: 10, y: 10, type: 'D', vx: 1, vy: 1 },
-                  { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 10, y: SIMULATION_HEIGHT - 10, type: 'D', vx: -1, vy: -1 }
+                  { id: simulationStateRef.current.nextParticleId++, x: 50, y: 50, type: 'D', vx: 1, vy: 1 },
+                  { id: simulationStateRef.current.nextParticleId++, x: SIMULATION_WIDTH - 50, y: SIMULATION_HEIGHT - 50, type: 'D', vx: -1, vy: -1 }
                 );
               }
     
               if (reactionType !== 'none') {
                 hasFusedWithAnother = true;
-                fusedIndices.add(j); // Mark p2 as fused
+                fusedIndices.add(j);
                 newEnergy += energyReleased;
                 newParticlesList.push(...particlesToAdd);
                 if (createsFlash) {
                   simulationStateRef.current.fusionsInLastSecond++;
-                  currentFlashes.push({ id: simulationStateRef.current.nextFlashId++, x: p1.x, y: p1.y, radius: 0, opacity: 1 });
+                  currentFlashes.push({ id: simulationStateRef.current.nextFlashId++, x: p1.x, y: p1.y, radius: 2, opacity: 1 });
                 }
-                break; // p1 has fused, move to the next particle in the outer loop
+                break;
               }
             }
           }
@@ -299,21 +295,17 @@ export function FusionReactorDashboard() {
 
       simulationStateRef.current.particles = newParticlesList;
       simulationStateRef.current.flashes = currentFlashes.filter(f => {
-        f.radius += 2;
-        f.opacity -= 0.025;
+        f.radius += 1.5;
+        f.opacity -= 0.05;
         return f.opacity > 0;
       });
       
       totalEnergyGeneratedRef.current += newEnergy;
-      
       animationFrameId = requestAnimationFrame(gameLoop);
     };
 
     animationFrameId = requestAnimationFrame(gameLoop);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
+    return () => cancelAnimationFrame(animationFrameId);
   }, [settings]);
   
   useEffect(() => {
@@ -345,7 +337,7 @@ export function FusionReactorDashboard() {
                 fusionRate: newFusionRate,
                 simulationDuration: simulationDuration,
                 relativeTemperature: settings.temperature,
-                fusionEfficiency: Math.min((newFusionRate / 15.0) * 100, 100),
+                fusionEfficiency: Math.min((newFusionRate / 10.0) * 100, 100),
                 averageKineticEnergy: parseFloat(averageKineticEnergy.toFixed(2)),
             };
         });
@@ -386,39 +378,79 @@ export function FusionReactorDashboard() {
         <header className="flex h-14 items-center gap-4 border-b px-4 sm:h-16 sm:px-6">
           <FusionIcon className="h-7 w-7 text-primary" />
           <h1 className="font-headline text-xl font-bold tracking-tight sm:text-2xl">FusionFlow Reactor</h1>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-4">
+            <Badge variant={telemetry.fusionEfficiency > 50 ? "default" : "outline"} className="hidden sm:flex">
+              Status: {telemetry.fusionEfficiency > 0 ? "Plasma Ativo" : "Ocioso"}
+            </Badge>
             <SidebarTrigger />
           </div>
         </header>
         <div className="flex flex-1 overflow-hidden">
           <Sidebar>
-            <SidebarContent className="p-2 md:p-4 space-y-4">
-              <ControlPanel 
-                settings={settings}
-                onTemperatureChange={handleTemperatureChange}
-                onConfinementChange={handleConfinementChange}
-                onEnergyThresholdChange={handleEnergyThresholdChange}
-                onInitialParticleCountChange={handleInitialParticleCountChange}
-                onReactionModeChange={handleReactionModeChange}
-                onReset={resetSimulation}
-              />
-              <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />
-              <AIAssistant
-                telemetryHistory={telemetryHistory}
-                settings={settings}
-                onTemperatureChange={handleTemperatureChange}
-                onConfinementChange={handleConfinementChange}
-              />
-              <SimulationHistoryPanel />
+            <SidebarHeader className="border-b p-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Console do Operador</h2>
+            </SidebarHeader>
+            <SidebarContent className="p-0">
+              <SidebarGroup>
+                <SidebarGroupLabel>Configurações do Reator</SidebarGroupLabel>
+                <SidebarGroupContent className="p-4">
+                  <ControlPanel 
+                    settings={settings}
+                    onTemperatureChange={handleTemperatureChange}
+                    onConfinementChange={handleConfinementChange}
+                    onEnergyThresholdChange={handleEnergyThresholdChange}
+                    onInitialParticleCountChange={handleInitialParticleCountChange}
+                    onReactionModeChange={handleReactionModeChange}
+                    onReset={resetSimulation}
+                  />
+                </SidebarGroupContent>
+              </SidebarGroup>
+              
+              <SidebarGroup>
+                <SidebarGroupLabel>Telemetria em Tempo Real</SidebarGroupLabel>
+                <SidebarGroupContent className="p-4">
+                  <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />
+                </SidebarGroupContent>
+              </SidebarGroup>
+
+              <SidebarGroup>
+                <SidebarGroupLabel>Assistência de IA</SidebarGroupLabel>
+                <SidebarGroupContent className="p-4">
+                  <AIAssistant
+                    telemetryHistory={telemetryHistory}
+                    settings={settings}
+                    onTemperatureChange={handleTemperatureChange}
+                    onConfinementChange={handleConfinementChange}
+                  />
+                </SidebarGroupContent>
+              </SidebarGroup>
+
+              <SidebarGroup>
+                <SidebarGroupLabel>Registros de Missão</SidebarGroupLabel>
+                <SidebarGroupContent className="p-4">
+                  <SimulationHistoryPanel />
+                </SidebarGroupContent>
+              </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <SidebarInset>
-            <div className="relative h-full w-full p-4">
-              <div className="relative mx-auto aspect-video max-h-full w-full max-w-[800px] overflow-hidden rounded-lg border shadow-lg bg-background">
+          <SidebarInset className="bg-muted/10">
+            <div className="relative flex h-full w-full items-center justify-center p-4">
+              <div className="relative aspect-video w-full max-w-[900px] overflow-hidden rounded-xl border-2 border-primary/20 bg-slate-950 shadow-2xl ring-1 ring-white/5">
                 <SimulationCanvas 
                     getParticles={getParticles}
                     getFlashes={getFlashes}
                 />
+                <div className="absolute bottom-4 left-4 flex flex-col gap-1 rounded-md bg-black/60 p-2 text-[10px] text-white/70 backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-[#00c8ff]" /> Deutério (D)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-[#ff6400]" /> Trítio (T)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-[#a855f7]" /> Hélio-3 (He3)
+                  </div>
+                </div>
               </div>
             </div>
           </SidebarInset>
