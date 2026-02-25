@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target, BrainCircuit } from "lucide-react";
+import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,36 +55,29 @@ export function AIAssistant({
   const stabilityMonths = suggestion?.projectedStabilityMonths || 0;
   const stabilityProgress = (stabilityMonths / 12) * 100;
 
-  const stableProps = useRef({ 
-    telemetryHistory, 
-    settings, 
-    pastRuns,
-    onTemperatureChange, 
-    onConfluenceChange: onConfinementChange, 
+  // Usamos um Ref para sempre ter acesso aos handlers mais recentes dentro do intervalo
+  const handlersRef = useRef({
+    onTemperatureChange,
+    onConfinementChange,
     onReactionModeChange,
     onReset,
-    toast, 
-    setIsLoading, 
-    setSuggestion, 
-    setIsAutoPilotOn 
+    settings,
+    telemetryHistory,
+    pastRuns
   });
-  
+
   useEffect(() => {
-    stableProps.current = { 
-      telemetryHistory, 
-      settings, 
-      pastRuns,
-      onTemperatureChange, 
-      onConfluenceChange: onConfinementChange, 
+    handlersRef.current = {
+      onTemperatureChange,
+      onConfinementChange,
       onReactionModeChange,
       onReset,
-      toast, 
-      setIsLoading, 
-      setSuggestion, 
-      setIsAutoPilotOn 
+      settings,
+      telemetryHistory,
+      pastRuns
     };
-  }, [telemetryHistory, settings, pastRuns, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, toast]);
-
+  }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, settings, telemetryHistory, pastRuns]);
+  
   useEffect(() => {
     if (!isAutoPilotOn) return;
 
@@ -94,18 +87,14 @@ export function AIAssistant({
         settings: currentSettings, 
         pastRuns: currentPastRuns,
         onTemperatureChange: currentOnTempChange, 
-        onConfluenceChange: currentOnConfChange,
+        onConfinementChange: currentOnConfChange,
         onReactionModeChange: currentOnModeChange,
-        onReset: currentOnReset,
-        toast: currentToast,
-        setIsLoading: currentSetIsLoading,
-        setSuggestion: currentSetSuggestion,
-        setIsAutoPilotOn: currentSetIsAutoPilotOn
-      } = stableProps.current;
+        onReset: currentOnReset
+      } = handlersRef.current;
 
       if (currentHistory.length < 5) return;
 
-      currentSetIsLoading(true);
+      setIsLoading(true);
       try {
         const result = await getAIConfigurationSuggestion({
           history: currentHistory,
@@ -118,10 +107,11 @@ export function AIAssistant({
             reactionMode: r.reactionMode,
           }))
         });
-        currentSetSuggestion(result);
+        
+        setSuggestion(result);
 
         if (result.shouldReset) {
-          currentToast({
+          toast({
             title: "Prometeu: Interrupção Recomendada",
             description: result.finalDiagnosis,
             variant: "destructive",
@@ -131,34 +121,42 @@ export function AIAssistant({
         }
 
         if (result.recommendedReactionMode !== currentSettings.reactionMode) {
+          toast({
+            title: "Prometeu: Alternando Ciclo",
+            description: `Transição estratégica para modo ${result.recommendedReactionMode}.`,
+          });
           currentOnModeChange(result.recommendedReactionMode);
           return;
         }
 
-        const tempAdj = 10;
-        const confAdj = 0.05;
+        // Ajustes graduais baseados nas recomendações
+        const tempStep = 5;
+        const confStep = 0.02;
 
-        let newTemp = currentSettings.temperature;
-        if (result.temperatureRecommendation === 'increase') newTemp += tempAdj;
-        else if (result.temperatureRecommendation === 'decrease') newTemp -= tempAdj;
+        if (result.temperatureRecommendation === 'increase') {
+           currentOnTempChange(Math.min(200, currentSettings.temperature + tempStep));
+        } else if (result.temperatureRecommendation === 'decrease') {
+           currentOnTempChange(Math.max(0, currentSettings.temperature - tempStep));
+        }
 
-        let newConf = currentSettings.confinement;
-        if (result.confinementRecommendation === 'increase') newConf += confAdj;
-        else if (result.confinementRecommendation === 'decrease') newConf -= confAdj;
+        if (result.confinementRecommendation === 'increase') {
+           currentOnConfChange(parseFloat(Math.min(1, currentSettings.confinement + confStep).toFixed(2)));
+        } else if (result.confinementRecommendation === 'decrease') {
+           currentOnConfChange(parseFloat(Math.max(0, currentSettings.confinement - confStep).toFixed(2)));
+        }
 
-        currentOnTempChange(Math.max(0, Math.min(200, newTemp)));
-        currentOnConfChange(parseFloat(Math.max(0, Math.min(1, newConf)).toFixed(2)));
       } catch (error) {
-        currentSetIsAutoPilotOn(false);
+        setIsAutoPilotOn(false);
       } finally {
-        currentSetIsLoading(false);
+        setIsLoading(false);
       }
     };
 
+    // Executa imediatamente e depois a cada 10 segundos para maior dinamismo
     runAutoPilotCycle();
-    const intervalId = setInterval(runAutoPilotCycle, 15000);
+    const intervalId = setInterval(runAutoPilotCycle, 10000);
     return () => clearInterval(intervalId);
-  }, [isAutoPilotOn]);
+  }, [isAutoPilotOn, toast]);
 
   const handleGetSuggestion = async () => {
     setIsLoading(true);

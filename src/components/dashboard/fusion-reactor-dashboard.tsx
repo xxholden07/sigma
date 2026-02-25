@@ -23,7 +23,7 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Target, Microscope, ShieldCheck } from "lucide-react";
+import { Target, Microscope } from "lucide-react";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   const particles: Particle[] = [];
@@ -273,16 +273,23 @@ export function FusionReactorDashboard() {
 
         setTelemetry(prev => {
             let newFusionRate = prev.fusionRate;
+            let instantaneousQ = prev.qFactor;
+
             if (currentTime - lastFusionRateUpdateTime.current >= 1000) {
                 newFusionRate = simulationStateRef.current.fusionsInLastSecond;
+                
+                // CÁLCULO DE Q INSTANTÂNEO (Pout / Pin)
+                // Pin baseada na energia necessária para manter a temperatura e confinamento
+                const energyInPerSecond = (settings.temperature * settings.confinement * settings.initialParticleCount * 0.05) + 1;
+                const energyOutPerSecond = newFusionRate * (settings.reactionMode === 'DT' ? DT_FUSION_ENERGY_MEV : DHE3_FUSION_ENERGY_MEV);
+                
+                instantaneousQ = parseFloat((energyOutPerSecond / energyInPerSecond).toFixed(2));
+
                 simulationStateRef.current.fusionsInLastSecond = 0;
                 lastFusionRateUpdateTime.current = currentTime;
             }
 
             const duration = (performance.now() - simulationTimeStartRef.current) / 1000;
-            const energyIn = settings.temperature * settings.confinement * settings.initialParticleCount * 0.1;
-            const qFactor = energyIn > 0 ? totalEnergyGeneratedRef.current / energyIn : 0;
-
             const totalKE = particles.reduce((sum, p) => sum + (0.5 * (p.vx * p.vx + p.vy * p.vy)), 0);
             const avgKE = particles.length > 0 ? totalKE / particles.length : 0;
 
@@ -294,9 +301,9 @@ export function FusionReactorDashboard() {
                 fusionRate: newFusionRate,
                 simulationDuration: duration,
                 relativeTemperature: settings.temperature,
-                fusionEfficiency: Math.min((qFactor / 1.5) * 100, 100),
+                fusionEfficiency: Math.min((instantaneousQ / 1.5) * 100, 100),
                 averageKineticEnergy: avgKE,
-                qFactor: parseFloat(qFactor.toFixed(2)),
+                qFactor: instantaneousQ,
             };
         });
     }, 200);
@@ -336,16 +343,16 @@ export function FusionReactorDashboard() {
           
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end gap-0.5 px-3 py-1 rounded-md border bg-slate-900/50">
-              <span className="text-[8px] uppercase text-muted-foreground font-bold">Base de Dados de Pulso</span>
+              <span className="text-[8px] uppercase text-muted-foreground font-bold">Total de Tentativas</span>
               <div className="flex items-center gap-1">
                 <Microscope className="h-3 w-3 text-primary" />
                 <span className="text-xs font-mono font-bold text-primary">{runs?.length || 0}</span>
               </div>
             </div>
 
-            <Badge variant={telemetry.qFactor >= 1 ? "default" : "outline"} className="hidden sm:flex h-8 gap-2 border-primary/20">
-              <Target className={`h-3 w-3 ${telemetry.qFactor >= 1 ? "text-green-400" : "text-primary"}`} />
-              STATUS: {telemetry.qFactor >= 1 ? "IGNIÇÃO (Q > 1)" : "FASE EXPERIMENTAL"}
+            <Badge variant={telemetry.qFactor >= 1.0 ? "default" : "outline"} className="hidden sm:flex h-8 gap-2 border-primary/20 transition-all">
+              <Target className={`h-3 w-3 ${telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary"}`} />
+              STATUS: {telemetry.qFactor >= 1.0 ? "IGNIÇÃO (Q > 1)" : "FASE EXPERIMENTAL"}
             </Badge>
             <SidebarTrigger />
           </div>
@@ -411,7 +418,7 @@ export function FusionReactorDashboard() {
                 <div className="absolute top-6 right-6 flex flex-col items-end gap-2 pointer-events-none">
                   <div className="bg-black/60 backdrop-blur-md border border-primary/20 p-2 rounded-lg">
                     <span className="text-[10px] text-primary font-mono block mb-1">GANHO DE ENERGIA (Q)</span>
-                    <div className="text-xl font-mono font-bold text-white">{telemetry.qFactor}</div>
+                    <div className="text-xl font-mono font-bold text-white">{telemetry.qFactor.toFixed(2)}</div>
                   </div>
                 </div>
               </div>
