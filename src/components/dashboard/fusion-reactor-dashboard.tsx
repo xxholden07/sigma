@@ -322,6 +322,7 @@ export function FusionReactorDashboard() {
             const rawLyapunov = (simulationStateRef.current.velocityVariance / 5) - (settings.confinement * 2);
             const lyapunov = parseFloat(rawLyapunov.toFixed(3));
             
+            // Fator de Segurança q baseado no confinamento (simulando Teoria KAM)
             const baseQ = 1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50));
             const magSafetyQ = parseFloat(baseQ.toFixed(3));
 
@@ -470,6 +471,7 @@ export function FusionReactorDashboard() {
                     getFlashes={() => simulationStateRef.current.flashes}
                     settings={settings}
                     qFactor={telemetry.qFactor}
+                    magneticSafetyFactorQ={telemetry.magneticSafetyFactorQ}
                 />
                 <div className="absolute top-6 right-6 flex flex-col items-end gap-2 pointer-events-none">
                   <div className="bg-black/60 backdrop-blur-md border border-primary/20 p-2 rounded-lg flex flex-col items-end">
