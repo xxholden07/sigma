@@ -164,7 +164,9 @@ export function AIAssistant({ telemetryHistory, settings, onTemperatureChange, o
         <div className="rounded-lg border bg-card p-3 space-y-3">
           <div className="flex items-center justify-between border-b pb-2">
             <span className="text-[10px] font-bold uppercase text-muted-foreground">Recomendações IA</span>
-            <Badge variant="outline" className="text-[8px] h-4 uppercase">Modo {settings.reactionMode}</Badge>
+            <Badge variant="outline" className="text-[8px] h-4 uppercase">
+              Modo {typeof settings.reactionMode === 'string' ? settings.reactionMode : 'DT'}
+            </Badge>
           </div>
           <div className="space-y-2">
             <div className="flex items-start gap-2">

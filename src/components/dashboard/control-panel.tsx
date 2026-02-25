@@ -73,14 +73,14 @@ export function ControlPanel({
               <Thermometer className="h-3 w-3 text-orange-500" />
               Temperatura Relativa
             </Label>
-            <span className="text-xs font-mono font-bold">{settings.temperature}</span>
+            <span className="text-xs font-mono font-bold">{(settings.temperature ?? 0).toFixed(0)}</span>
           </div>
           <Slider
             id="temperature"
             min={0}
             max={200}
             step={1}
-            value={[settings.temperature]}
+            value={[settings.temperature ?? 0]}
             onValueChange={(value) => onTemperatureChange(value[0])}
           />
         </div>
@@ -91,14 +91,14 @@ export function ControlPanel({
               <Magnet className="h-3 w-3 text-blue-500" />
               Força de Confinamento
             </Label>
-            <span className="text-xs font-mono font-bold">{settings.confinement.toFixed(2)}</span>
+            <span className="text-xs font-mono font-bold">{(settings.confinement ?? 0).toFixed(2)}</span>
           </div>
           <Slider
             id="confinement"
             min={0}
             max={1}
             step={0.01}
-            value={[settings.confinement]}
+            value={[settings.confinement ?? 0]}
             onValueChange={(value) => onConfinementChange(value[0])}
           />
         </div>
@@ -109,14 +109,14 @@ export function ControlPanel({
               <Flame className="h-3 w-3 text-red-500" />
               Limite de Energia
             </Label>
-            <span className="text-xs font-mono font-bold">{settings.energyThreshold.toFixed(1)}</span>
+            <span className="text-xs font-mono font-bold">{(settings.energyThreshold ?? 0).toFixed(1)}</span>
           </div>
           <Slider
             id="energy-threshold"
             min={5}
             max={25}
             step={0.5}
-            value={[settings.energyThreshold]}
+            value={[settings.energyThreshold ?? 0]}
             onValueChange={(value) => onEnergyThresholdChange(value[0])}
           />
         </div>
@@ -127,20 +127,20 @@ export function ControlPanel({
               <Atom className="h-3 w-3 text-purple-500" />
               Densidade de Partículas
             </Label>
-            <span className="text-xs font-mono font-bold">{settings.initialParticleCount}</span>
+            <span className="text-xs font-mono font-bold">{settings.initialParticleCount ?? 0}</span>
           </div>
           <Slider
             id="initial-particle-count"
             min={10}
             max={200}
             step={10}
-            value={[settings.initialParticleCount]}
+            value={[settings.initialParticleCount ?? 0]}
             onValueChange={(value) => onInitialParticleCountChange(value[0])}
           />
         </div>
       </div>
 
-      <Button variant="outline" size="sm" onClick={onReset} className="w-full h-9 text-xs">
+      <Button variant="outline" size="sm" onClick={() => onReset()} className="w-full h-9 text-xs">
         <RotateCcw className="mr-2 h-3 w-3" />
         Reiniciar Reator
       </Button>

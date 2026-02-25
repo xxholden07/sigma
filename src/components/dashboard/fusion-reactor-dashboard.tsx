@@ -65,10 +65,10 @@ export function FusionReactorDashboard() {
   
   const [telemetry, setTelemetry] = useState({
     totalEnergyGenerated: 0,
-    particleCount: settings.initialParticleCount,
+    particleCount: INITIAL_PARTICLE_COUNT,
     simulationDuration: 0,
     fusionRate: 0,
-    relativeTemperature: settings.temperature,
+    relativeTemperature: INITIAL_TEMPERATURE,
     fusionEfficiency: 0,
     averageKineticEnergy: 0,
   });
@@ -115,10 +115,11 @@ export function FusionReactorDashboard() {
     addDocumentNonBlocking(runsCollectionRef, runData);
   }, [user, firestore, peakFusionRate, settings]);
 
-  const resetSimulation = useCallback((newMode?: ReactionMode) => {
+  const resetSimulation = useCallback((newMode?: ReactionMode | any) => {
     handleSaveSimulation();
 
-    const reactionMode = newMode || settings.reactionMode;
+    // Robust check to ensure newMode is a string and not an event object
+    const reactionMode = (typeof newMode === 'string') ? (newMode as ReactionMode) : settings.reactionMode;
 
     const newSettings = {
       ...settings,
@@ -401,7 +402,7 @@ export function FusionReactorDashboard() {
                     onEnergyThresholdChange={handleEnergyThresholdChange}
                     onInitialParticleCountChange={handleInitialParticleCountChange}
                     onReactionModeChange={handleReactionModeChange}
-                    onReset={resetSimulation}
+                    onReset={() => resetSimulation()}
                   />
                 </SidebarGroupContent>
               </SidebarGroup>
