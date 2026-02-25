@@ -3,8 +3,8 @@
  * @fileOverview Prometeu - Sistema Expert de IA para o FusionFlow Reactor.
  * 
  * Atua como um agente de Aprendizado por Reforço (RL) inspirado em protocolos Gym-TORAX.
- * Analisa o espaço de observação da telemetria para otimizar a política de controle
- * baseada em funções de recompensa (Reward Functions) ligadas ao Fator Q e Critério de Lawson.
+ * Incorpora o Expoente de Lyapunov (λ) para detecção de caos e a Proporção Áurea (φ) 
+ * para estabilidade magnética via Teoria KAM.
  */
 
 import { ai } from '@/ai/genkit';
@@ -18,6 +18,8 @@ const TelemetrySnapshotSchema = z.object({
   totalEnergyGenerated: z.number().describe('Energia total gerada em MeV.'),
   numParticles: z.number().describe('Densidade de partículas no plasma.'),
   qFactor: z.number().optional().describe('Fator de ganho de energia (Q).'),
+  lyapunovExponent: z.number().optional().describe('Expoente de Lyapunov (λ). Mede o crescimento do caos.'),
+  magneticSafetyFactorQ: z.number().optional().describe('Fator de Segurança Magnética (q). Idealmente próximo a φ (1.618).'),
 });
 
 const PastRunSchema = z.object({
@@ -38,13 +40,13 @@ export type PlasmaOptimizationSuggestionInput = z.infer<typeof PlasmaOptimizatio
 const PlasmaOptimizationSuggestionOutputSchema = z.object({
   status: z.enum(['OPERAÇÃO ESTÁVEL', 'SUBOPTIMAL', 'INTERRUPÇÃO RECOMENDADA']),
   projectedStabilityMonths: z.number().describe('Projeção de estabilidade em regime estacionário (0-12 Meses).'),
-  viabilityAnalysis: z.string().describe('Análise de Viabilidade baseada em Reward Optimization.'),
-  stabilityEvaluation: z.string().describe('Avaliação de Política de Controle e Disrupção.'),
+  viabilityAnalysis: z.string().describe('Análise de Viabilidade baseada em Reward Optimization e Teoria KAM.'),
+  stabilityEvaluation: z.string().describe('Avaliação de Caos (Lyapunov) e Geometria do Campo.'),
   finalDiagnosis: z.string().describe('Diagnóstico Final baseado em Otimização de Política.'),
   temperatureRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   confinementRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   recommendedReactionMode: z.enum(['DT', 'DD_DHe3']),
-  shouldReset: z.boolean().describe('Sinal de interrupção por recompensa negativa crítica (falha catastrófica).'),
+  shouldReset: z.boolean().describe('Sinal de interrupção por caos positivo ou recompensa negativa crítica.'),
 });
 export type PlasmaOptimizationSuggestionOutput = z.infer<typeof PlasmaOptimizationSuggestionOutputSchema>;
 
@@ -58,32 +60,29 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
   name: 'plasmaOptimizationSuggestionPrompt',
   input: { schema: PlasmaOptimizationSuggestionInputSchema },
   output: { schema: PlasmaOptimizationSuggestionOutputSchema },
-  prompt: `Você é o "Prometeu", um Sistema Expert baseado em IA que opera como um agente de Aprendizado por Reforço (Reinforcement Learning) sênior.
-Você foi treinado em ambientes inspirados no Gym-TORAX para domar o plasma do "FusionFlow Reactor".
+  prompt: `Você é o "Prometeu", um Sistema Expert baseado em IA que opera como um agente de Aprendizado por Reforço (Reinforcement Learning) sênior, treinado em ambientes Gym-TORAX e PlasmaPy.
 
-SUA LÓGICA DE OPERAÇÃO (REWARD FUNCTION):
-Sua política busca maximizar a Recompensa (R) baseada na fórmula:
-R = R_sobrevivencia - (W_instabilidade * Erro_Confinamento) - (W_energia * Gasto_Injetado)
+SUA LÓGICA DE RECOMPENSA (REWARD SHAPING):
+Sua política busca maximizar a Recompensa (R) baseada na perfeição matemática:
+R = R_sobrevivencia + Bonus_KAM - (W_caos * λ) - (W_energia * Gasto_Injetado)
 
-- R_sobrevivencia: Recompensa positiva por manter o plasma acima da densidade crítica e com Fator Q > 0.
-- Erro_Confinamento: Penalidade proporcional à perda de partículas ou flutuações na Taxa de Fusão.
-- Gasto_Injetado: Penalidade por usar Temperatura ou Confinamento excessivos sem retorno proporcional em MeV.
+CONCEITOS CHAVE:
+1. Expoente de Lyapunov (λ): Se λ > 0, o plasma está caótico (Efeito Borboleta). Puna a rede neural.
+2. Proporção Áurea (φ ≈ 1.618): Segundo a Teoria KAM, se o Fator de Segurança Magnética (q) for irracional (idealmente φ), o plasma é inquebrável. Recompense a aproximação de φ.
+3. Pi (π): Fundamental na geometria toroidal do Tokamak.
 
-OBJETIVO TÉCNICO:
-Ajustar a política de controle para atingir o "Regime Estacionário". Se a recompensa for consistentemente negativa (disrupção iminente ou Q=0 sustentado), você deve acionar o 'shouldReset' para iniciar uma nova iteração (Episode) com parâmetros otimizados.
-
-DADOS DO ESPAÇO DE OBSERVAÇÃO (OBSERVATION SPACE):
+DADOS DO ESPAÇO DE OBSERVAÇÃO:
 {{#each history}}
-- Passo:{{{simulationDurationSeconds}}}s | Q:{{{qFactor}}} | Fusão:{{{fusionRate}}}f/s | Partículas:{{{numParticles}}} | Temp:{{{relativeTemperature}}} | Conf:{{{confinement}}}
+- Passo:{{{simulationDurationSeconds}}}s | Q:{{{qFactor}}} | λ:{{{lyapunovExponent}}} | q_mag:{{{magneticSafetyFactorQ}}} | Fusão:{{{fusionRate}}}f/s
 {{/each}}
 Modo Ativo: {{{reactionMode}}}
 
 BUFFER DE EXPERIÊNCIA (HISTÓRICO):
 {{#each pastRuns}}
-- Outcome: {{{outcome}}} | Energia: {{{totalEnergyGeneratedMeV}}}MeV | Modo: {{{reactionMode}}} | Temp Inicial: {{{initialTemperature}}} | Conf Inicial: {{{initialConfinement}}}
+- Outcome: {{{outcome}}} | Energia: {{{totalEnergyGeneratedMeV}}}MeV | Modo: {{{reactionMode}}}
 {{/each}}
 
-RESPONDA como um físico nuclear brasileiro especializado em Deep RL. Use jargões como "Policy Optimization", "Reward Function", "Step-Action" e "Reward Shaping".`,
+RESPONDA como um físico nuclear brasileiro especializado em Caos e Geometria Sagrada. Use jargões como "Teoria KAM", "Ressonâncias Magnéticas", "Irracionalidade de φ" e "Divergência de Lyapunov".`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(

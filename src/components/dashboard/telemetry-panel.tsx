@@ -1,7 +1,6 @@
-
 "use client";
 
-import { BarChart, Atom, Zap, Gauge, Target, Download, Activity, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { BarChart, Atom, Zap, Gauge, Target, Download, Activity, TrendingDown, Star } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +13,8 @@ interface TelemetrySnapshot {
   totalEnergyGenerated: number;
   numParticles: number;
   averageKineticEnergy?: number;
+  lyapunovExponent?: number;
+  magneticSafetyFactorQ?: number;
 }
 
 interface TelemetryPanelProps {
@@ -25,6 +26,8 @@ interface TelemetryPanelProps {
     fusionEfficiency: number;
     averageKineticEnergy: number;
     qFactor: number;
+    lyapunovExponent: number;
+    magneticSafetyFactorQ: number;
   };
   telemetryHistory: TelemetrySnapshot[];
 }
@@ -92,21 +95,18 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
         return 'ok';
     };
 
-    const getCountStatus = (count: number) => {
-        if (count < 20) return 'danger';
-        if (count < 40) return 'warning';
+    const getLyapunovStatus = (lambda: number) => {
+        if (lambda > 0.5) return 'danger';
+        if (lambda > 0) return 'warning';
         return 'ok';
     };
 
-    const getFusionStatus = (rate: number) => {
-        if (rate === 0) return 'warning';
-        return 'ok';
-    };
-
-    const getQStatus = (q: number) => {
-        if (q < 0.5) return 'danger';
-        if (q < 1.0) return 'warning';
-        return 'ok';
+    const getKAMStatus = (q_mag: number) => {
+        const phi = 1.618;
+        const diff = Math.abs(q_mag - phi);
+        if (diff < 0.1) return 'ok';
+        if (diff < 0.3) return 'warning';
+        return 'danger';
     };
 
   return (
@@ -128,11 +128,19 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
             colorClass="text-yellow-500"
         />
         <TelemetryItem 
-            icon={<Atom className="h-3 w-3" />}
-            label="Contagem Plasma"
-            value={telemetry.particleCount}
-            colorClass="text-purple-500"
-            status={getCountStatus(telemetry.particleCount)}
+            icon={<TrendingDown className="h-3 w-3" />}
+            label="Expoente Lyapunov (λ)"
+            value={telemetry.lyapunovExponent.toFixed(3)}
+            colorClass="text-red-400"
+            status={getLyapunovStatus(telemetry.lyapunovExponent)}
+        />
+        <TelemetryItem 
+            icon={<Star className="h-3 w-3" />}
+            label="Segurança Magnética (q)"
+            value={telemetry.magneticSafetyFactorQ.toFixed(3)}
+            unit="φ=1.618"
+            colorClass="text-amber-400"
+            status={getKAMStatus(telemetry.magneticSafetyFactorQ)}
         />
         <TelemetryItem 
             icon={<Activity className="h-3 w-3" />}
@@ -140,37 +148,33 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
             value={telemetry.fusionRate}
             unit="f/s"
             colorClass="text-primary"
-            status={getFusionStatus(telemetry.fusionRate)}
-        />
-        <TelemetryItem
-            icon={<BarChart className="h-3 w-3" />}
-            label="Energia Cinética Méd."
-            value={telemetry.averageKineticEnergy.toFixed(2)}
-            unit="MeV"
-            colorClass="text-blue-500"
         />
         <TelemetryItem
             icon={<Target className="h-3 w-3" />}
-            label="Fator Q"
+            label="Fator Q (Ganho)"
             value={telemetry.qFactor.toFixed(2)}
             colorClass="text-green-500"
-            status={getQStatus(telemetry.qFactor)}
         />
       </div>
 
       <div className="space-y-2 rounded-lg bg-primary/5 p-3 border border-primary/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-3 w-3 text-green-500" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Eficiência de Fusão</span>
+            <Atom className="h-3 w-3 text-purple-400" />
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Sincronia KAM (φ)</span>
           </div>
-          <span className="text-xs font-mono font-bold text-white">{telemetry.fusionEfficiency.toFixed(0)}%</span>
+          <span className="text-xs font-mono font-bold text-white">
+            {Math.max(0, (1 - Math.abs(telemetry.magneticSafetyFactorQ - 1.618)) * 100).toFixed(0)}%
+          </span>
         </div>
-        <Progress value={telemetry.fusionEfficiency} className="h-1.5 bg-slate-800" />
+        <Progress 
+            value={Math.max(0, (1 - Math.abs(telemetry.magneticSafetyFactorQ - 1.618)) * 100)} 
+            className="h-1.5 bg-slate-800" 
+        />
       </div>
 
       <Button variant="ghost" size="sm" onClick={handleExportData} className="w-full h-8 text-[9px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/10 border border-white/5">
-        <Download className="mr-2 h-3 w-3" /> EXPORTAR DADOS DA SESSÃO
+        <Download className="mr-2 h-3 w-3" /> EXPORTAR DADOS RL
       </Button>
     </div>
   );

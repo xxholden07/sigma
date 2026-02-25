@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -24,8 +23,8 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Microscope, Zap, ShieldAlert, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Microscope, Zap, ShieldAlert, Play } from "lucide-react";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
   const particles: Particle[] = [];
@@ -64,6 +63,8 @@ export function FusionReactorDashboard() {
     fusionEfficiency: 0,
     averageKineticEnergy: 0,
     qFactor: 0,
+    lyapunovExponent: 0,
+    magneticSafetyFactorQ: 1.0,
   });
   
   const [peakFusionRate, setPeakFusionRate] = useState(0);
@@ -81,6 +82,7 @@ export function FusionReactorDashboard() {
     nextParticleId: settings.initialParticleCount,
     nextFlashId: 0,
     fusionsInLastSecond: 0,
+    velocityVariance: 0,
   });
   
   const totalEnergyGeneratedRef = useRef(0);
@@ -134,6 +136,7 @@ export function FusionReactorDashboard() {
         nextParticleId: newSettings.initialParticleCount,
         nextFlashId: 0,
         fusionsInLastSecond: 0,
+        velocityVariance: 0,
     };
     totalEnergyGeneratedRef.current = 0;
     
@@ -149,6 +152,8 @@ export function FusionReactorDashboard() {
       fusionEfficiency: 0,
       averageKineticEnergy: 0,
       qFactor: 0,
+      lyapunovExponent: 0,
+      magneticSafetyFactorQ: 1.0,
     });
     
     simulationTimeStartRef.current = performance.now();
@@ -193,6 +198,7 @@ export function FusionReactorDashboard() {
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
       const { confinement, energyThreshold, reactionMode, temperature } = settings;
 
+      let sumVx = 0, sumVy = 0;
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
         const dy = (SIMULATION_HEIGHT / 2) - p.y;
@@ -210,8 +216,13 @@ export function FusionReactorDashboard() {
 
         if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) p.vx *= -1;
         if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) p.vy *= -1;
+        
+        sumVx += Math.abs(p.vx);
+        sumVy += Math.abs(p.vy);
       }
       
+      simulationStateRef.current.velocityVariance = (sumVx + sumVy) / Math.max(1, currentParticles.length);
+
       const newParticlesList: Particle[] = [];
       const fusedIndices = new Set<number>();
       let newEnergy = 0;
@@ -307,6 +318,12 @@ export function FusionReactorDashboard() {
             const duration = (performance.now() - simulationTimeStartRef.current) / 1000;
             const totalKE = particles.reduce((sum, p) => sum + (0.5 * (p.vx * p.vx + p.vy * p.vy)), 0);
             const avgKE = particles.length > 0 ? totalKE / particles.length : 0;
+            
+            const rawLyapunov = (simulationStateRef.current.velocityVariance / 5) - (settings.confinement * 2);
+            const lyapunov = parseFloat(rawLyapunov.toFixed(3));
+            
+            const baseQ = 1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50));
+            const magSafetyQ = parseFloat(baseQ.toFixed(3));
 
             setPeakFusionRate(pfr => Math.max(pfr, newFusionRate));
 
@@ -319,6 +336,8 @@ export function FusionReactorDashboard() {
                 fusionEfficiency: Math.min((instantaneousQ / 1.5) * 100, 100),
                 averageKineticEnergy: avgKE,
                 qFactor: instantaneousQ,
+                lyapunovExponent: lyapunov,
+                magneticSafetyFactorQ: magSafetyQ,
             };
         });
     }, 200);
@@ -338,7 +357,8 @@ export function FusionReactorDashboard() {
                 totalEnergyGenerated: parseFloat(current.totalEnergyGenerated.toFixed(1)),
                 numParticles: current.particleCount,
                 qFactor: current.qFactor,
-                averageKineticEnergy: current.averageKineticEnergy,
+                lyapunovExponent: current.lyapunovExponent,
+                magneticSafetyFactorQ: current.magneticSafetyFactorQ,
             };
 
             setTelemetryHistory(prev => [...prev, snapshot].slice(-20));
