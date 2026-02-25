@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -92,12 +91,13 @@ export function AIAssistant({
         onReset: currentOnReset
       } = handlersRef.current;
 
+      // Se não houver telemetria suficiente, aguarda um pouco mais
       if (currentHistory.length < 5) return;
 
       setIsLoading(true);
       try {
         const result = await getAIConfigurationSuggestion({
-          history: currentHistory,
+          history: currentHistory.slice(-10),
           reactionMode: currentSettings.reactionMode,
           pastRuns: currentPastRuns.slice(0, 5).map(r => ({
             outcome: r.outcome,
@@ -112,8 +112,8 @@ export function AIAssistant({
 
         if (result.shouldReset) {
           toast({
-            title: "Prometeu: Interrupção Recomendada",
-            description: result.finalDiagnosis,
+            title: "Prometeu: Reinício Estratégico",
+            description: "Condições suboptimais detectadas. Iniciando nova tentativa de ignição...",
             variant: "destructive",
           });
           currentOnReset();
@@ -129,8 +129,9 @@ export function AIAssistant({
           return;
         }
 
-        const tempStep = 5;
-        const confStep = 0.02;
+        // Ajustes incrementais baseados na recomendação da IA
+        const tempStep = 10;
+        const confStep = 0.05;
 
         if (result.temperatureRecommendation === 'increase') {
            currentOnTempChange(Math.min(200, currentSettings.temperature + tempStep));
@@ -145,14 +146,14 @@ export function AIAssistant({
         }
 
       } catch (error) {
-        setIsAutoPilotOn(false);
+        console.error("Autopilot error:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    runAutoPilotCycle();
-    const intervalId = setInterval(runAutoPilotCycle, 10000);
+    // Ciclo mais rápido de 5 segundos para maior autonomia
+    const intervalId = setInterval(runAutoPilotCycle, 5000);
     return () => clearInterval(intervalId);
   }, [isAutoPilotOn, toast]);
 
@@ -165,7 +166,7 @@ export function AIAssistant({
         return;
       }
       const result = await getAIConfigurationSuggestion({
-        history: telemetryHistory,
+        history: telemetryHistory.slice(-10),
         reactionMode: settings.reactionMode,
         pastRuns: pastRuns.slice(0, 5).map(r => ({
           outcome: r.outcome,
@@ -191,7 +192,6 @@ export function AIAssistant({
 
   return (
     <div className="space-y-4">
-      {/* HUD de Projeção Comercial */}
       <div className="rounded-lg border bg-slate-950/60 p-3 space-y-2 border-primary/20">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold text-primary uppercase tracking-tighter flex items-center gap-1">
@@ -208,14 +208,13 @@ export function AIAssistant({
         </div>
       </div>
 
-      {/* Switch do Prometeu */}
       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
         <div className="space-y-0.5">
           <Label htmlFor="autopilot-switch" className="text-xs font-bold flex items-center gap-2 text-primary">
             <Bot className="h-3 w-3" />
             PROMETEU (AUTO)
           </Label>
-          <p className="text-[10px] text-muted-foreground italic tracking-tight">Análise de Lawson em tempo real.</p>
+          <p className="text-[10px] text-muted-foreground italic tracking-tight">Análise em ciclo contínuo.</p>
         </div>
         <Switch
           id="autopilot-switch"
@@ -225,7 +224,6 @@ export function AIAssistant({
         />
       </div>
 
-      {/* Botão de Solicitação Manual - Só aparece se o AutoPilot estiver desligado */}
       {!isAutoPilotOn && (
         <Button onClick={handleGetSuggestion} disabled={isLoading} variant="secondary" className="w-full h-9 text-xs font-bold transition-all">
           {isLoading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <FlaskConical className="mr-2 h-3 w-3" />}
@@ -233,15 +231,13 @@ export function AIAssistant({
         </Button>
       )}
 
-      {/* Indicador de Monitoramento Ativo */}
       {isAutoPilotOn && isLoading && (
         <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Prometeu: Sincronizando Gêmeo Digital...</span>
+          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Otimizando Parâmetros...</span>
         </div>
       )}
 
-      {/* Relatório Científico */}
       {suggestion && (
         <div className="rounded-lg border bg-card p-4 space-y-4 shadow-2xl relative overflow-hidden border-primary/10">
           <div className="absolute top-0 left-0 w-1 h-full bg-primary/40" />

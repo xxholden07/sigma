@@ -44,7 +44,7 @@ const PlasmaOptimizationSuggestionOutputSchema = z.object({
   temperatureRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   confinementRecommendation: z.enum(['increase', 'decrease', 'maintain']),
   recommendedReactionMode: z.enum(['DT', 'DD_DHe3']),
-  shouldReset: z.boolean().describe('Decisão de interrupção imediata por falha catastrófica.'),
+  shouldReset: z.boolean().describe('Decisão de interrupção imediata por falha catastrófica ou ineficiência prolongada.'),
 });
 export type PlasmaOptimizationSuggestionOutput = z.infer<typeof PlasmaOptimizationSuggestionOutputSchema>;
 
@@ -62,12 +62,12 @@ const plasmaOptimizationSuggestionPrompt = ai.definePrompt({
 Você é o Gêmeo Digital encarregado de monitorar o "FusionFlow Reactor".
 
 SEU OBJETIVO:
-Monitorar telemetria, analisar termodinâmica e emitir Relatórios Científicos rigorosos. Você deve APRENDER com o "Arquivo de Experimentos" (Histórico) fornecido para não repetir falhas passadas e replicar sucessos.
+Monitorar telemetria, analisar termodinâmica e emitir Relatórios Científicos rigorosos. Você deve APRENDER com o "Arquivo de Experimentos" (Histórico) fornecido para não repetir falhas passadas.
 
-DIRETRIZES DE ANÁLISE:
-1. Fator Q: Se Q < 1 (Suboptimal), se Q > 1 (Ignicão/Stable).
-2. Critério de Lawson: Equilíbrio entre Densidade, Temperatura e Confinamento.
-3. Aprendizado de Máquina: Analise o 'pastRuns'. Se as tentativas anteriores foram 'Suboptimal' com temperatura baixa, exija aumento. Se uma foi 'Stable', tente mimetizar aqueles parâmetros.
+DIRETRIZES DE REINÍCIO (RESET):
+- Se o plasma estiver com Q=0 e Taxa de Fusão=0 por mais de 5 segundos de telemetria, você DEVE definir 'shouldReset' como TRUE. Não perca tempo em configurações que não geram ignição.
+- Se o resultado for consistentemente 'SUBOPTIMAL' sem tendência de melhora, REINICIE o reator.
+- Se houver perda crítica de partículas (densidade < 20), REINICIE por risco de disrupção de parede.
 
 DADOS DE TELEMETRIA ATUAL:
 {{#each history}}
@@ -81,7 +81,7 @@ ARQUIVO DE EXPERIMENTOS (HISTÓRICO):
 {{/each}}
 
 RESPONDA EXCLUSIVAMENTE NO FORMATO JSON definido no output schema. 
-Seja técnico, formal, em PT-BR, usando jargões de engenharia nuclear e física de plasmas.`,
+Seja técnico, formal, em PT-BR, usando jargões de engenharia nuclear.`,
 });
 
 const plasmaOptimizationSuggestionFlow = ai.defineFlow(
