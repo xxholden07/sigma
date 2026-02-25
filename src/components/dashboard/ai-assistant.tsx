@@ -88,6 +88,26 @@ export function AIAssistant({
     };
   }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition, settings, telemetryHistory, pastRuns, isSimulating, isAutoPilotOn]);
   
+  // Efeito para o Piloto Automático assumir o controle da ignição se o reator estiver parado
+  useEffect(() => {
+    if (isAutoPilotOn && !isSimulating) {
+        const timer = setTimeout(() => {
+            const { onTemperatureChange, onConfinementChange, onStartIgnition, settings } = handlersRef.current;
+            
+            // Configura parâmetros iniciais "inteligentes" antes de ligar
+            onTemperatureChange(120);
+            onConfinementChange(0.35);
+            
+            toast({
+                title: "Prometeu: Iniciando Ignição",
+                description: "IA assumindo controle dos parâmetros iniciais e disparando pulso.",
+            });
+            onStartIgnition();
+        }, 1500);
+        return () => clearTimeout(timer);
+    }
+  }, [isAutoPilotOn, isSimulating, toast]);
+
   useEffect(() => {
     // A IA monitora continuamente se o reator estiver simulando
     if (!isSimulating) {
@@ -147,6 +167,7 @@ export function AIAssistant({
             return;
           }
 
+          // Ajustes dinâmicos
           const tempStep = 10;
           const confStep = 0.05;
 
@@ -170,7 +191,7 @@ export function AIAssistant({
       }
     };
 
-    // Ciclo de análise a cada 7 segundos para o Gêmeo Digital
+    // Ciclo de análise para o Gêmeo Digital
     const intervalId = setInterval(runAnalysisCycle, 7000);
     return () => clearInterval(intervalId);
   }, [isSimulating]);
