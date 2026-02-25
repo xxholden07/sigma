@@ -92,6 +92,7 @@ export function AIAssistant({
         const timer = setTimeout(() => {
             const { onTemperatureChange, onConfinementChange, onStartIgnition } = handlersRef.current;
             
+            // Política inicial baseada em TORAX
             onTemperatureChange(120);
             onConfinementChange(0.35);
             
@@ -172,9 +173,9 @@ export function AIAssistant({
           }
 
           if (result.confinementRecommendation === 'increase') {
-             currentOnConfChange(parseFloat(Math.min(1, currentSettings.confinement + confStep).toFixed(2)));
+             currentOnConfinementChange(parseFloat(Math.min(1, currentSettings.confinement + confStep).toFixed(2)));
           } else if (result.confinementRecommendation === 'decrease') {
-             currentOnConfChange(parseFloat(Math.max(0, currentSettings.confinement - confStep).toFixed(2)));
+             currentOnConfinementChange(parseFloat(Math.max(0, currentSettings.confinement - confStep).toFixed(2)));
           }
         }
 
