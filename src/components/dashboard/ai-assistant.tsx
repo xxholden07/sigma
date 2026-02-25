@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowDown, ArrowUp, Bot, Loader2, Minus, Zap, Shuffle, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, Loader2, Minus, Zap, Shuffle, RotateCcw, Activity } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ interface TelemetrySnapshot {
   totalEnergyGenerated: number;
   numParticles: number;
   averageKineticEnergy?: number;
+  qFactor?: number;
 }
 
 interface AIAssistantProps {
@@ -55,9 +56,8 @@ export function AIAssistant({
   const [isAutoPilotOn, setIsAutoPilotOn] = useState(false);
   const { toast } = useToast();
 
-  const currentDuration = telemetryHistory.length > 0 ? telemetryHistory[telemetryHistory.length - 1].simulationDurationSeconds : 0;
-  const stabilityProgress = Math.min((currentDuration / 120) * 100, 100);
-  const monthsOperated = Math.floor(currentDuration / 10);
+  const stabilityMonths = suggestion?.projectedStabilityMonths || 0;
+  const stabilityProgress = (stabilityMonths / 12) * 100;
 
   const stableProps = useRef({ 
     telemetryHistory, 
@@ -114,28 +114,26 @@ export function AIAssistant({
         });
         currentSetSuggestion(result);
 
-        // Se a IA decidir pelo Reset Estratégico
         if (result.shouldReset) {
           currentToast({
-            title: "Reset Estratégico",
-            description: `IA reiniciando reator: ${result.resetReason}`,
+            title: "Interrupção de Pulso",
+            description: `A IA detectou colapso iminente: ${result.resetReason}`,
           });
           currentOnReset();
           return;
         }
 
-        // Se a IA decidir trocar o combustível
         if (result.recommendedReactionMode !== currentSettings.reactionMode) {
           currentToast({
             title: "Troca de Combustível",
-            description: `IA alternando para modo ${result.recommendedReactionMode}: ${result.reactionModeReason}`,
+            description: `Otimizando Produto Triplo para modo ${result.recommendedReactionMode}`,
           });
           currentOnModeChange(result.recommendedReactionMode);
           return;
         }
 
-        const tempAdjustment = 5;
-        const confinementAdjustment = 0.05;
+        const tempAdjustment = 10;
+        const confinementAdjustment = 0.08;
 
         let newTemp = currentSettings.temperature;
         if (result.temperatureRecommendation === 'increase') newTemp += tempAdjustment;
@@ -145,17 +143,9 @@ export function AIAssistant({
         if (result.confinementRecommendation === 'increase') newConfinement += confinementAdjustment;
         else if (result.confinementRecommendation === 'decrease') newConfinement -= confinementAdjustment;
 
-        const finalTemp = Math.max(0, Math.min(200, newTemp));
-        const finalConfinement = parseFloat(Math.max(0, Math.min(1, newConfinement)).toFixed(2));
-
-        currentOnTempChange(finalTemp);
-        currentOnConfChange(finalConfinement);
+        currentOnTempChange(Math.max(0, Math.min(200, newTemp)));
+        currentOnConfChange(parseFloat(Math.max(0, Math.min(1, newConfinement)).toFixed(2)));
       } catch (error) {
-        currentToast({
-          variant: "destructive",
-          title: "Erro no Piloto Automático",
-          description: "Perda de conexão com o núcleo de IA.",
-        });
         currentSetIsAutoPilotOn(false);
       } finally {
         currentSetIsLoading(false);
@@ -163,19 +153,15 @@ export function AIAssistant({
     };
 
     runAutoPilotCycle();
-    const intervalId = setInterval(runAutoPilotCycle, 10000);
+    const intervalId = setInterval(runAutoPilotCycle, 15000);
     return () => clearInterval(intervalId);
   }, [isAutoPilotOn]);
-
 
   const handleGetSuggestion = async () => {
     setIsLoading(true);
     try {
       if (telemetryHistory.length < 3) {
-        toast({
-            title: "Dados Insuficientes",
-            description: "Aguarde a ignição do plasma para análise.",
-        });
+        toast({ title: "Dados Insuficientes", description: "Aguarde a ignição para análise escalar." });
         setIsLoading(false);
         return;
       }
@@ -185,11 +171,7 @@ export function AIAssistant({
       });
       setSuggestion(result);
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erro no Assistente",
-        description: "Não foi possível processar a telemetria.",
-      });
+      toast({ variant: "destructive", title: "Erro de Análise", description: "Falha ao processar Critério de Lawson." });
     } finally {
       setIsLoading(false);
     }
@@ -197,23 +179,24 @@ export function AIAssistant({
 
   return (
     <div className="space-y-4">
-      {/* Meta de Estabilidade */}
       <div className="rounded-lg border bg-slate-900/40 p-3 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-primary uppercase tracking-tighter">Meta: 12 Meses de Estabilidade</span>
-          <span className="text-[10px] font-mono font-bold text-white">{monthsOperated}/12 Meses</span>
+          <span className="text-[10px] font-bold text-primary uppercase tracking-tighter">Projeção de Escala Comercial</span>
+          <span className="text-[10px] font-mono font-bold text-white">{stabilityMonths}/12 Meses</span>
         </div>
         <Progress value={stabilityProgress} className="h-1 bg-slate-800" />
-        <p className="text-[8px] text-muted-foreground italic text-center">Progresso baseado no tempo de contenção do plasma.</p>
+        <p className="text-[8px] text-muted-foreground italic text-center leading-tight">
+          Viabilidade estimada baseada no Produto Triplo (Densidade x Temp x Tempo).
+        </p>
       </div>
 
       <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 p-3">
         <div className="space-y-0.5">
           <Label htmlFor="autopilot-switch" className="text-xs font-bold flex items-center gap-2 text-primary">
             <Zap className="h-3 w-3 fill-primary" />
-            PILOTO AUTOMÁTICO
+            SISTEMA EXPERT
           </Label>
-          <p className="text-[10px] text-muted-foreground">IA tem controle total (incluindo Reset).</p>
+          <p className="text-[10px] text-muted-foreground italic">Ajuste autônomo de parâmetros.</p>
         </div>
         <Switch
           id="autopilot-switch"
@@ -224,19 +207,15 @@ export function AIAssistant({
       </div>
 
       <Button onClick={handleGetSuggestion} disabled={isLoading || isAutoPilotOn} variant="secondary" className="w-full h-9 text-xs">
-        {isLoading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Bot className="mr-2 h-3 w-3" />}
-        Análise Estratégica
+        {isLoading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Activity className="mr-2 h-3 w-3" />}
+        Análise de Viabilidade
       </Button>
 
       {suggestion && (
         <div className="rounded-lg border bg-card p-3 space-y-3 shadow-inner">
           <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Log de Decisão IA</span>
-            {suggestion.shouldReset ? (
-               <Badge variant="destructive" className="text-[8px] h-4 uppercase animate-pulse">REINICIANDO</Badge>
-            ) : (
-               <Badge variant="outline" className="text-[8px] h-4 uppercase">Modo: {settings.reactionMode}</Badge>
-            )}
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Relatório Científico</span>
+            <Badge variant="outline" className="text-[8px] h-4 uppercase">{settings.reactionMode}</Badge>
           </div>
           
           <div className="space-y-3">
@@ -245,7 +224,7 @@ export function AIAssistant({
                 <div className="flex items-start gap-2">
                   <div className="mt-0.5">{recommendationIcons[suggestion.temperatureRecommendation]}</div>
                   <div className="space-y-0.5 text-[11px]">
-                    <p className="font-bold text-orange-400 uppercase">Temperatura</p>
+                    <p className="font-bold text-orange-400 uppercase">Ajuste Térmico</p>
                     <p className="text-muted-foreground leading-tight">{suggestion.temperatureReason}</p>
                   </div>
                 </div>
@@ -253,19 +232,8 @@ export function AIAssistant({
                 <div className="flex items-start gap-2">
                   <div className="mt-0.5">{recommendationIcons[suggestion.confinementRecommendation]}</div>
                   <div className="space-y-0.5 text-[11px]">
-                    <p className="font-bold text-blue-400 uppercase">Confinamento</p>
+                    <p className="font-bold text-blue-400 uppercase">Campo Magnético</p>
                     <p className="text-muted-foreground leading-tight">{suggestion.confinementReason}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2 border-t pt-2">
-                  <div className="mt-0.5 text-purple-400"><Shuffle className="h-3 w-3" /></div>
-                  <div className="space-y-0.5 text-[11px]">
-                    <p className="font-bold text-purple-400 uppercase">Fluxo de Combustível</p>
-                    <p className="text-muted-foreground leading-tight">
-                      Estado: <span className="font-bold text-foreground">{suggestion.recommendedReactionMode}</span>
-                    </p>
-                    <p className="text-[10px] italic leading-tight text-muted-foreground/80">{suggestion.reactionModeReason}</p>
                   </div>
                 </div>
               </>
@@ -273,7 +241,7 @@ export function AIAssistant({
               <div className="flex items-start gap-2 bg-destructive/10 p-2 rounded border border-destructive/20">
                 <RotateCcw className="h-4 w-4 text-destructive mt-0.5" />
                 <div className="space-y-0.5 text-[11px]">
-                  <p className="font-bold text-destructive uppercase">Reset Recomendado</p>
+                  <p className="font-bold text-destructive uppercase">Interrupção Recomendada</p>
                   <p className="text-muted-foreground leading-tight">{suggestion.resetReason}</p>
                 </div>
               </div>
@@ -282,7 +250,7 @@ export function AIAssistant({
           
           <div className="pt-2 border-t">
             <p className="text-[11px] font-semibold text-foreground leading-relaxed italic">
-              "{suggestion.overallInsight}"
+              "{suggestion.scientificInsight}"
             </p>
           </div>
         </div>
