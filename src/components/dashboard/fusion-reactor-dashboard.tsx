@@ -26,7 +26,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database } from "lucide-react";
+import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
@@ -77,6 +77,13 @@ export function FusionReactorDashboard() {
   const [peakFusionRate, setPeakFusionRate] = useState(0);
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
+
+  // Contador de simulações para a barra superior
+  const runsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users', user.uid, 'simulationRuns'));
+  }, [firestore, user]);
+  const { data: allRuns } = useCollection<SimulationRun>(runsQuery);
 
   const simulationStateRef = useRef({
     particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode),
@@ -298,13 +305,13 @@ export function FusionReactorDashboard() {
 
               if (reactionMode === 'DT' && p1.type !== p2.type) {
                 reactionType = 'DT';
-                energyReleased = DT_FUSION_ENERGY_MEV;
+                newEnergy = DT_FUSION_ENERGY_MEV;
               } else if (reactionMode === 'DD_DHe3') {
                 if (p1.type === 'D' && p2.type === 'D') reactionType = 'DD';
                 else if (p1.type === 'He3' || p2.type === 'He3') {
                   if (p1.type !== p2.type) {
                     reactionType = 'DHe3';
-                    energyReleased = DHE3_FUSION_ENERGY_MEV;
+                    newEnergy = DHE3_FUSION_ENERGY_MEV;
                   }
                 }
               }
@@ -312,7 +319,6 @@ export function FusionReactorDashboard() {
               if (reactionType !== 'none') {
                 hasFusedWithAnother = true;
                 fusedIndices.add(j);
-                newEnergy += (reactionType === 'DT' ? DT_FUSION_ENERGY_MEV : (reactionType === 'DHe3' ? DHE3_FUSION_ENERGY_MEV : 2.0));
                 
                 if (reactionType === 'DD') {
                   newParticlesList.push({ id: simulationStateRef.current.nextParticleId++, x: p1.x, y: p1.y, vx: p1.vx * 0.5, vy: p1.vy * 0.5, type: 'He3' });
@@ -443,10 +449,17 @@ export function FusionReactorDashboard() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">Unidade de Controle JAX / DeepMind</p>
           </div>
           
-          <div className="ml-auto flex items-center gap-4">
-            <Badge variant={telemetry.qFactor >= 1.0 ? "default" : "outline"} className={`hidden sm:flex h-8 gap-2 border-primary/20 transition-all ${telemetry.qFactor >= 5.0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : ''}`}>
+          <div className="ml-auto flex items-center gap-3 sm:gap-6">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/50 border border-white/5">
+              <History className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">Dataset:</span>
+              <span className="text-[11px] font-mono font-bold text-primary">{allRuns?.length || 0}</span>
+            </div>
+
+            <Badge variant={telemetry.qFactor >= 1.0 ? "default" : "outline"} className={`h-8 gap-2 border-primary/20 transition-all ${telemetry.qFactor >= 5.0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/50 shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]' : ''}`}>
               <Zap className={`h-3 w-3 ${telemetry.qFactor >= 5.0 ? "text-amber-400 animate-bounce" : telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary"}`} />
-              {telemetry.qFactor >= 5.0 ? "IGNIÇÃO PLENA (Q > 5)" : telemetry.qFactor >= 1.0 ? "BREAKEVEN (Q > 1)" : "EXPERIMENTAL"}
+              <span className="hidden sm:inline">{telemetry.qFactor >= 5.0 ? "IGNIÇÃO PLENA (Q > 5)" : telemetry.qFactor >= 1.0 ? "BREAKEVEN (Q > 1)" : "EXPERIMENTAL"}</span>
+              <span className="sm:hidden">{telemetry.qFactor >= 1.0 ? "Q > 1" : "EXP"}</span>
             </Badge>
             <SidebarTrigger />
           </div>
