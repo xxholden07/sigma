@@ -1,5 +1,7 @@
 {
-  "firebase_hosting": {},
+  "firebase_hosting": {
+    "deploymentHostingUrl": "https://studio-8560845051-9a319.web.app"
+  },
   "cloud_run_deploy": {},
   "gemini_api": {}
 }
