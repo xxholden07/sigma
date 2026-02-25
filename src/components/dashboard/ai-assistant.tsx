@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target } from "lucide-react";
+import { Bot, Loader2, Zap, Activity, ShieldAlert, FlaskConical, Target, BrainCircuit } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -195,6 +195,7 @@ export function AIAssistant({
 
   return (
     <div className="space-y-4">
+      {/* HUD de Projeção Comercial */}
       <div className="rounded-lg border bg-slate-950/60 p-3 space-y-2 border-primary/20">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold text-primary uppercase tracking-tighter flex items-center gap-1">
@@ -206,6 +207,7 @@ export function AIAssistant({
         <Progress value={stabilityProgress} className="h-1 bg-slate-800" />
       </div>
 
+      {/* Switch do Prometeu */}
       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
         <div className="space-y-0.5">
           <Label htmlFor="autopilot-switch" className="text-xs font-bold flex items-center gap-2 text-primary">
@@ -222,11 +224,23 @@ export function AIAssistant({
         />
       </div>
 
-      <Button onClick={handleGetSuggestion} disabled={isLoading || isAutoPilotOn} variant="secondary" className="w-full h-9 text-xs font-bold">
-        {isLoading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <FlaskConical className="mr-2 h-3 w-3" />}
-        SOLICITAR RELATÓRIO CIENTÍFICO
-      </Button>
+      {/* Botão de Solicitação Manual - Só aparece se o AutoPilot estiver desligado */}
+      {!isAutoPilotOn && (
+        <Button onClick={handleGetSuggestion} disabled={isLoading} variant="secondary" className="w-full h-9 text-xs font-bold transition-all">
+          {isLoading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <FlaskConical className="mr-2 h-3 w-3" />}
+          SOLICITAR RELATÓRIO CIENTÍFICO
+        </Button>
+      )}
 
+      {/* Indicador de Monitoramento Ativo */}
+      {isAutoPilotOn && isLoading && (
+        <div className="flex items-center justify-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/10 border-dashed">
+          <Loader2 className="h-3 w-3 animate-spin text-primary" />
+          <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Prometeu Analisando Telemetria...</span>
+        </div>
+      )}
+
+      {/* Relatório Científico */}
       {suggestion && (
         <div className="rounded-lg border bg-card p-4 space-y-4 shadow-2xl relative overflow-hidden border-primary/10">
           <div className="absolute top-0 left-0 w-1 h-full bg-primary/40" />
