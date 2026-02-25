@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -77,6 +78,26 @@
             "type": "string",
             "description": "The fuel cycle used for the simulation (e.g., 'DT', 'DD_DHe3').",
             "enum": ["DT", "DD_DHe3"]
+        },
+        "finalLyapunovExponent": {
+          "type": "number",
+          "description": "The Lyapunov exponent measured at the end of the run."
+        },
+        "finalFractalDimensionD": {
+          "type": "number",
+          "description": "The fractal dimension of the plasma edge at the end of the run."
+        },
+        "finalMagneticSafetyFactorQ": {
+          "type": "number",
+          "description": "The magnetic safety factor (q) at the end of the run."
+        },
+        "finalWallIntegrity": {
+          "type": "number",
+          "description": "The remaining wall integrity percentage."
+        },
+        "finalAiReward": {
+          "type": "number",
+          "description": "The final reward score given to the AI agent."
         }
       },
       "required": [

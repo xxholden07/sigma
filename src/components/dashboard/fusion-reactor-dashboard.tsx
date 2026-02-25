@@ -107,6 +107,7 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
+    // Captura os dados ricos da telemetria final
     const runData: Omit<SimulationRun, 'id'> = {
         userId: user.uid,
         createdAt: new Date().toISOString(),
@@ -119,11 +120,17 @@ export function FusionReactorDashboard() {
         initialConfinement: settings.confinement,
         finalEnergyThreshold: settings.energyThreshold,
         reactionMode: settings.reactionMode,
+        // Advanced RL metrics
+        finalLyapunovExponent: telemetry.lyapunovExponent,
+        finalFractalDimensionD: telemetry.fractalDimensionD,
+        finalMagneticSafetyFactorQ: telemetry.magneticSafetyFactorQ,
+        finalWallIntegrity: telemetry.wallIntegrity,
+        finalAiReward: telemetry.aiReward,
     };
 
     const runsCollectionRef = collection(firestore, 'users', user.uid, 'simulationRuns');
     addDocumentNonBlocking(runsCollectionRef, runData);
-  }, [user, firestore, peakFusionRate, settings]);
+  }, [user, firestore, peakFusionRate, settings, telemetry]);
 
   const resetSimulation = useCallback((newMode?: ReactionMode) => {
     handleSaveSimulation();

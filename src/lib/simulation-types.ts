@@ -1,3 +1,4 @@
+
 export type ParticleType = 'D' | 'T' | 'He3';
 
 export type ReactionMode = 'DT' | 'DD_DHe3';
@@ -32,6 +33,12 @@ export interface SimulationRun {
   initialConfinement: number;
   finalEnergyThreshold: number;
   reactionMode: ReactionMode;
+  // Advanced Metrics for RL Training
+  finalLyapunovExponent?: number;
+  finalFractalDimensionD?: number;
+  finalMagneticSafetyFactorQ?: number;
+  finalWallIntegrity?: number;
+  finalAiReward?: number;
 }
 
 export interface TelemetrySnapshot {
