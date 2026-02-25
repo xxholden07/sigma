@@ -448,6 +448,8 @@ export function FusionReactorDashboard() {
                 <SimulationCanvas 
                     getParticles={() => simulationStateRef.current.particles}
                     getFlashes={() => simulationStateRef.current.flashes}
+                    settings={settings}
+                    qFactor={telemetry.qFactor}
                 />
                 <div className="absolute top-6 right-6 flex flex-col items-end gap-2 pointer-events-none">
                   <div className="bg-black/60 backdrop-blur-md border border-primary/20 p-2 rounded-lg flex flex-col items-end">
