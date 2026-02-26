@@ -25,7 +25,7 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button"; // Importação crucial adicionada
 import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -78,7 +78,6 @@ export function FusionReactorDashboard() {
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
 
-  // Dataset counter for the header
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'users', user.uid, 'simulationRuns'), orderBy('createdAt', 'desc'));
@@ -107,7 +106,6 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    // Capture rich telemetry data for the Experience Buffer
     const runData: Omit<SimulationRun, 'id'> = {
         userId: user.uid,
         createdAt: new Date().toISOString(),
@@ -120,7 +118,6 @@ export function FusionReactorDashboard() {
         initialConfinement: settings.confinement,
         finalEnergyThreshold: settings.energyThreshold,
         reactionMode: settings.reactionMode,
-        // Advanced RL metrics
         finalLyapunovExponent: telemetry.lyapunovExponent,
         finalFractalDimensionD: telemetry.fractalDimensionD,
         finalMagneticSafetyFactorQ: telemetry.magneticSafetyFactorQ,
@@ -128,7 +125,6 @@ export function FusionReactorDashboard() {
         finalAiReward: telemetry.aiReward,
     };
 
-    // Critical: Sanitize numeric values to avoid Firestore 400 errors (NaN/Infinity)
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
     
     const sanitizedData = {
@@ -201,7 +197,6 @@ export function FusionReactorDashboard() {
     lastFusionRateUpdateTime.current = performance.now();
   }, []);
 
-  // Dynamic Turbulence Logic
   useEffect(() => {
     if (!isSimulating) return;
 
@@ -223,7 +218,6 @@ export function FusionReactorDashboard() {
     return () => clearInterval(turbulenceInterval);
   }, [isSimulating, toast]);
 
-  // Thermal Degradation Logic
   useEffect(() => {
     if (!isSimulating) return;
     
