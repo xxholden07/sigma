@@ -70,7 +70,7 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
         authObject = buildAuthObject(auth.currentUser);
       }
     } catch (e) {
-      // Falha silenciosa se o Firebase não estiver pronto
+      // Falha silenciosa se o Firebase não estiver pronto ou em ambiente de build
     }
   }
 

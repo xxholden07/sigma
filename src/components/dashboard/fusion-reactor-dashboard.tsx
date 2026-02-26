@@ -22,7 +22,7 @@ import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { FusionIcon } from "../icons/fusion-icon";
 import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query } from "firebase/firestore";
+import { collection } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,6 +112,7 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
+    // Saneamento de dados para evitar Error 400 no Firestore (NaN/Infinity)
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
     const runData = {
