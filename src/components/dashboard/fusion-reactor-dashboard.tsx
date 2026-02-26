@@ -78,7 +78,7 @@ export function FusionReactorDashboard() {
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
 
-  // Contador de simulações para a barra superior
+  // Dataset counter for the header
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'users', user.uid, 'simulationRuns'), orderBy('createdAt', 'desc'));
@@ -107,7 +107,7 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    // Captura os dados ricos da telemetria final para o buffer de experiência
+    // Capture rich telemetry data for the Experience Buffer
     const runData: Omit<SimulationRun, 'id'> = {
         userId: user.uid,
         createdAt: new Date().toISOString(),
@@ -128,8 +128,23 @@ export function FusionReactorDashboard() {
         finalAiReward: telemetry.aiReward,
     };
 
+    // Critical: Sanitize numeric values to avoid Firestore 400 errors (NaN/Infinity)
+    const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
+    
+    const sanitizedData = {
+        ...runData,
+        durationSeconds: sanitize(runData.durationSeconds),
+        totalEnergyGeneratedMeV: sanitize(runData.totalEnergyGeneratedMeV),
+        peakFusionRate: sanitize(runData.peakFusionRate),
+        finalLyapunovExponent: sanitize(runData.finalLyapunovExponent),
+        finalFractalDimensionD: sanitize(runData.finalFractalDimensionD),
+        finalMagneticSafetyFactorQ: sanitize(runData.finalMagneticSafetyFactorQ),
+        finalWallIntegrity: sanitize(runData.finalWallIntegrity),
+        finalAiReward: sanitize(runData.finalAiReward),
+    };
+
     const runsCollectionRef = collection(firestore, 'users', user.uid, 'simulationRuns');
-    addDocumentNonBlocking(runsCollectionRef, runData);
+    addDocumentNonBlocking(runsCollectionRef, sanitizedData);
   }, [user, firestore, peakFusionRate, settings, telemetry]);
 
   const resetSimulation = useCallback((newMode?: ReactionMode) => {
@@ -186,7 +201,7 @@ export function FusionReactorDashboard() {
     lastFusionRateUpdateTime.current = performance.now();
   }, []);
 
-  // Mecânica de Turbulência Dinâmica
+  // Dynamic Turbulence Logic
   useEffect(() => {
     if (!isSimulating) return;
 
@@ -208,7 +223,7 @@ export function FusionReactorDashboard() {
     return () => clearInterval(turbulenceInterval);
   }, [isSimulating, toast]);
 
-  // Degradação de Componentes por Calor
+  // Thermal Degradation Logic
   useEffect(() => {
     if (!isSimulating) return;
     
@@ -531,7 +546,7 @@ export function FusionReactorDashboard() {
           </Sidebar>
           <SidebarInset className="bg-slate-950">
             <div className="relative flex h-full w-full items-center justify-center p-4">
-              <div className="relative aspect-video w-full max-w-[1000px] overflow-hidden rounded-2xl border border-primary/30 bg-black shadow-[0_0_80px_-20px_rgba(59,130,246,0.6)] ring-1 ring-white/10">
+              <div className="relative aspect-video w-full max-w-full lg:max-w-[1000px] overflow-hidden rounded-2xl border border-primary/30 bg-black shadow-[0_0_80px_-20px_rgba(59,130,246,0.6)] ring-1 ring-white/10">
                 {!isSimulating && (
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md gap-4">
                     <div className="flex flex-col items-center gap-2 text-center">

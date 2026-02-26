@@ -11,5 +11,13 @@ env:
     value: "studio-8560845051-9a319.firebaseapp.com"
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     value: "studio-8560845051-9a319"
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "studio-8560845051-9a319.firebasestorage.app"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "391636410996"
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: "1:391636410996:web:7f18189777c1e36dfa6721"
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: "G-SFTY68QXZ0"
+  - variable: NODE_ENV
+    value: "production"
