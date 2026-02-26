@@ -25,8 +25,8 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button"; // IMPORTADO CORRETAMENTE
-import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function createInitialParticles(count: number, mode: ReactionMode): Particle[] {

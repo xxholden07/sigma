@@ -62,7 +62,7 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
 function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
   let authObject: FirebaseAuthObject | null = null;
   
-  if (getApps().length > 0) {
+  if (typeof window !== 'undefined' && getApps().length > 0) {
     try {
       const app = getApp();
       const auth = getAuth(app);
@@ -70,7 +70,7 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
         authObject = buildAuthObject(auth.currentUser);
       }
     } catch (e) {
-      // Falha silenciosa se o Firebase não estiver pronto ou em ambiente de build
+      // Falha silenciosa se o Firebase não estiver pronto
     }
   }
 
