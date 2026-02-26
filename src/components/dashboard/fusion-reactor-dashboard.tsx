@@ -106,41 +106,29 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    const runData: Omit<SimulationRun, 'id'> = {
+    const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
+
+    const runData = {
         userId: user.uid,
         createdAt: new Date().toISOString(),
-        durationSeconds: parseFloat(((performance.now() - simulationTimeStartRef.current) / 1000).toFixed(1)),
-        totalEnergyGeneratedMeV: parseFloat(totalEnergyGeneratedRef.current.toFixed(1)),
-        peakFusionRate: peakFusionRate,
-        outcome: (totalEnergyGeneratedRef.current / 100) > 75 ? 'High Yield' : (totalEnergyGeneratedRef.current / 100) > 25 ? 'Stable' : 'Suboptimal',
+        durationSeconds: sanitize(((performance.now() - simulationTimeStartRef.current) / 1000)),
+        totalEnergyGeneratedMeV: sanitize(totalEnergyGeneratedRef.current),
+        peakFusionRate: sanitize(peakFusionRate),
+        outcome: (totalEnergyGeneratedRef.current > 75) ? 'High Yield' : (totalEnergyGeneratedRef.current > 25) ? 'Stable' : 'Suboptimal',
         initialParticleCount: settings.initialParticleCount,
         initialTemperature: settings.temperature,
         initialConfinement: settings.confinement,
         finalEnergyThreshold: settings.energyThreshold,
         reactionMode: settings.reactionMode,
-        finalLyapunovExponent: telemetry.lyapunovExponent,
-        finalFractalDimensionD: telemetry.fractalDimensionD,
-        finalMagneticSafetyFactorQ: telemetry.magneticSafetyFactorQ,
-        finalWallIntegrity: telemetry.wallIntegrity,
-        finalAiReward: telemetry.aiReward,
-    };
-
-    const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
-    
-    const sanitizedData = {
-        ...runData,
-        durationSeconds: sanitize(runData.durationSeconds),
-        totalEnergyGeneratedMeV: sanitize(runData.totalEnergyGeneratedMeV),
-        peakFusionRate: sanitize(runData.peakFusionRate),
-        finalLyapunovExponent: sanitize(runData.finalLyapunovExponent),
-        finalFractalDimensionD: sanitize(runData.finalFractalDimensionD),
-        finalMagneticSafetyFactorQ: sanitize(runData.finalMagneticSafetyFactorQ),
-        finalWallIntegrity: sanitize(runData.finalWallIntegrity),
-        finalAiReward: sanitize(runData.finalAiReward),
+        finalLyapunovExponent: sanitize(telemetry.lyapunovExponent),
+        finalFractalDimensionD: sanitize(telemetry.fractalDimensionD),
+        finalMagneticSafetyFactorQ: sanitize(telemetry.magneticSafetyFactorQ),
+        finalWallIntegrity: sanitize(telemetry.wallIntegrity),
+        finalAiReward: sanitize(telemetry.aiReward),
     };
 
     const runsCollectionRef = collection(firestore, 'users', user.uid, 'simulationRuns');
-    addDocumentNonBlocking(runsCollectionRef, sanitizedData);
+    addDocumentNonBlocking(runsCollectionRef, runData);
   }, [user, firestore, peakFusionRate, settings, telemetry]);
 
   const resetSimulation = useCallback((newMode?: ReactionMode) => {
