@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser, initiateGoogleSignIn, initiateAnonymousSignIn } from "@/firebase";
 import { Button } from "@/components/ui/button";
-import { Loader2, Google, User as UserIcon } from "lucide-react";
+import { Loader2, LogIn, User as UserIcon } from "lucide-react";
 import { FusionIcon } from "@/components/icons/fusion-icon";
 
 export default function LoginPage() {
@@ -16,7 +17,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      // Se o usuário já está logado (ou anônimo), redireciona para o dashboard
       router.push("/");
     }
   }, [user, isUserLoading, router]);
@@ -42,8 +42,6 @@ export default function LoginPage() {
   };
 
   if (isUserLoading || user) {
-    // Exibe um spinner enquanto o estado do usuário está sendo carregado
-    // ou se o usuário já está logado e estamos redirecionando
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -72,7 +70,7 @@ export default function LoginPage() {
           {isLoadingGoogle ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
-            <Google className="h-5 w-5" />
+            <LogIn className="h-5 w-5" />
           )}
           Entrar com Google
         </Button>
