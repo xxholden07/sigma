@@ -1,6 +1,7 @@
+
 'use client';
-import { getAuth, type User, getApp } from 'firebase/auth';
-import { getApps } from 'firebase/app';
+import { getAuth, type User } from 'firebase/auth';
+import { getApps, getApp } from 'firebase/app';
 
 type SecurityRuleContext = {
   path: string;
@@ -64,12 +65,13 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
   // Verifica se o Firebase foi inicializado antes de chamar getAuth()
   if (getApps().length > 0) {
     try {
-      const auth = getAuth();
+      const app = getApp();
+      const auth = getAuth(app);
       if (auth.currentUser) {
         authObject = buildAuthObject(auth.currentUser);
       }
     } catch (e) {
-      // Falha silenciosa se o auth ainda não estiver pronto
+      // Falha silenciosa se o auth ainda não estiver pronto ou configurado
     }
   }
 

@@ -1,30 +1,36 @@
 
 'use client';
 
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, limit } from 'firebase/firestore';
 import { History, Loader2, ServerCrash, Database, TrendingDown, Waves, Zap, Activity } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import type { SimulationRun } from '@/lib/simulation-types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useMemo } from 'react';
 
 export function SimulationHistoryPanel() {
   const { firestore, user } = useFirebase();
 
+  // Removido orderBy para evitar necessidade de índices
   const simulationRunsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'users', user.uid, 'simulationRuns'),
-      orderBy('createdAt', 'desc'),
-      limit(20)
+      limit(50)
     );
   }, [firestore, user]);
 
-  const { data: runs, isLoading, error } = useCollection<SimulationRun>(simulationRunsQuery);
+  const { data: rawRuns, isLoading, error } = useCollection<SimulationRun>(simulationRunsQuery);
+
+  // Ordenação na memória
+  const runs = useMemo(() => {
+    if (!rawRuns) return [];
+    return [...rawRuns].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [rawRuns]);
 
   const getOutcomeBadgeVariant = (outcome?: string) => {
     switch (outcome) {

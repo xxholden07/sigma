@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar";
 import type { Particle, FusionFlash, SimulationRun, ReactionMode, TelemetrySnapshot } from "@/lib/simulation-types";
 import {
@@ -21,7 +22,7 @@ import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { FusionIcon } from "../icons/fusion-icon";
 import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,11 +78,19 @@ export function FusionReactorDashboard() {
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
 
+  // Removido orderBy para evitar necessidade de índices manuais no Firestore
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'users', user.uid, 'simulationRuns'), orderBy('createdAt', 'desc'));
+    return collection(firestore, 'users', user.uid, 'simulationRuns');
   }, [firestore, user]);
-  const { data: allRuns } = useCollection<SimulationRun>(runsQuery);
+  
+  const { data: rawRuns } = useCollection<SimulationRun>(runsQuery);
+  
+  // Ordenação na memória para garantir que o contador funcione sem índices
+  const allRuns = useMemo(() => {
+    if (!rawRuns) return [];
+    return [...rawRuns].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [rawRuns]);
 
   const simulationStateRef = useRef({
     particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode),
@@ -105,7 +114,7 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    // Função de saneamento para garantir que apenas números válidos sejam salvos no Firestore
+    // Função de saneamento robusta contra NaN e Infinity
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
     const runData = {
