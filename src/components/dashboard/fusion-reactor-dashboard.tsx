@@ -78,7 +78,6 @@ export function FusionReactorDashboard() {
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
 
-  // Removido orderBy para evitar necessidade de índices manuais no Firestore
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'users', user.uid, 'simulationRuns');
@@ -86,7 +85,6 @@ export function FusionReactorDashboard() {
   
   const { data: rawRuns } = useCollection<SimulationRun>(runsQuery);
   
-  // Ordenação na memória para garantir que o contador funcione sem índices
   const allRuns = useMemo(() => {
     if (!rawRuns) return [];
     return [...rawRuns].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -114,7 +112,6 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    // Função de saneamento robusta contra NaN e Infinity
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
     const runData = {
@@ -194,48 +191,6 @@ export function FusionReactorDashboard() {
     lastFusionRateUpdateTime.current = performance.now();
   }, []);
 
-  useEffect(() => {
-    if (!isSimulating) return;
-
-    const turbulenceInterval = setInterval(() => {
-      if (Math.random() > 0.8) {
-        toast({
-          title: "ALERTA DE TURBULÊNCIA",
-          description: "Pico de instabilidade magnética detectado! Estabilizando...",
-          variant: "destructive",
-        });
-        
-        simulationStateRef.current.particles.forEach(p => {
-          p.vx += (Math.random() - 0.5) * 10;
-          p.vy += (Math.random() - 0.5) * 10;
-        });
-      }
-    }, 10000);
-
-    return () => clearInterval(turbulenceInterval);
-  }, [isSimulating, toast]);
-
-  useEffect(() => {
-    if (!isSimulating) return;
-    
-    const degradationInterval = setInterval(() => {
-        if (settings.temperature > 170) {
-            setConfinementPenalty(p => Math.min(0.5, p + 0.01));
-            if (Math.random() > 0.9) {
-                toast({
-                    title: "DEGRADAÇÃO TÉRMICA",
-                    description: "Bobinas magnéticas superaquecidas. Perda de eficiência de confinamento.",
-                    variant: "destructive"
-                });
-            }
-        } else if (settings.temperature < 140) {
-            setConfinementPenalty(p => Math.max(0, p - 0.01));
-        }
-    }, 2000);
-
-    return () => clearInterval(degradationInterval);
-  }, [isSimulating, settings.temperature, toast]);
-
   const handleTemperatureChange = useCallback((newTemp: number) => {
     setSettings(s => ({...s, temperature: newTemp}));
   }, []);
@@ -270,7 +225,6 @@ export function FusionReactorDashboard() {
 
       const effectiveConfinement = Math.max(0, confinement - confinementPenalty);
 
-      let sumVx = 0, sumVy = 0;
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
         const dy = (SIMULATION_HEIGHT / 2) - p.y;
@@ -288,13 +242,8 @@ export function FusionReactorDashboard() {
 
         if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) p.vx *= -1;
         if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) p.vy *= -1;
-        
-        sumVx += Math.abs(p.vx);
-        sumVy += Math.abs(p.vy);
       }
       
-      simulationStateRef.current.velocityVariance = (sumVx + sumVy) / Math.max(1, currentParticles.length);
-
       const newParticlesList: Particle[] = [];
       const fusedIndices = new Set<number>();
       let newEnergy = 0;
@@ -367,8 +316,6 @@ export function FusionReactorDashboard() {
         if (!isSimulating) return;
 
         const currentTime = performance.now();
-        const particles = simulationStateRef.current.particles;
-
         setTelemetry(prev => {
             let newFusionRate = prev.fusionRate;
             let instantaneousQ = prev.qFactor;
@@ -383,72 +330,22 @@ export function FusionReactorDashboard() {
             }
 
             const duration = (performance.now() - simulationTimeStartRef.current) / 1000;
-            const rawLyapunov = (simulationStateRef.current.velocityVariance / 5) - (settings.confinement * 2);
-            const lyapunov = parseFloat(rawLyapunov.toFixed(3));
             const magSafetyQ = parseFloat((1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50))).toFixed(3));
-
-            const fractalTurbulence = Math.max(0, lyapunov * 0.5) + (Math.abs(magSafetyQ - PHI) * 0.3);
+            const fractalTurbulence = Math.abs(magSafetyQ - PHI) * 0.3;
             const dFactor = 1.0 + Math.min(0.9, fractalTurbulence);
-
-            let newWallIntegrity = prev.wallIntegrity;
-            if (settings.reactionMode === 'DT' && newFusionRate > 5) {
-                newWallIntegrity = Math.max(0, prev.wallIntegrity - (newFusionRate * 0.01));
-                if (newWallIntegrity === 0) {
-                    toast({ title: "FALHA ESTRUTURAL", description: "Blindagem do reator comprometida por nêutrons.", variant: "destructive"});
-                    resetSimulation();
-                }
-            }
-
-            const kamBonus = Math.exp(-Math.abs(magSafetyQ - PHI)) * 5;
-            const chaosPenalty = lyapunov > 0 ? lyapunov * 10 : 0;
-            const fractalPenalty = (dFactor - 1.0) * 20; 
-            const survivalReward = 1.0;
-            const energyPenalty = (settings.temperature * settings.confinement * 0.02);
-            
-            const currentReward = survivalReward + kamBonus - chaosPenalty - fractalPenalty - energyPenalty;
-
-            setPeakFusionRate(pfr => Math.max(pfr, newFusionRate));
 
             return {
                 ...prev,
                 totalEnergyGenerated: totalEnergyGeneratedRef.current,
-                particleCount: particles.length,
+                particleCount: simulationStateRef.current.particles.length,
                 fusionRate: newFusionRate,
                 simulationDuration: duration,
                 qFactor: instantaneousQ,
-                lyapunovExponent: lyapunov,
                 magneticSafetyFactorQ: magSafetyQ,
-                wallIntegrity: newWallIntegrity,
-                aiReward: currentReward,
                 fractalDimensionD: dFactor
             };
         });
     }, 200);
-    return () => clearInterval(intervalId);
-  }, [settings, isSimulating, resetSimulation, toast]);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-        if (!isSimulating) return;
-        setTelemetry(current => {
-            const snapshot: TelemetrySnapshot = {
-                simulationDurationSeconds: parseFloat(current.simulationDuration.toFixed(1)),
-                relativeTemperature: settings.temperature,
-                confinement: settings.confinement,
-                fusionRate: current.fusionRate,
-                totalEnergyGenerated: parseFloat(current.totalEnergyGenerated.toFixed(1)),
-                numParticles: current.particleCount,
-                qFactor: current.qFactor,
-                lyapunovExponent: current.lyapunovExponent,
-                magneticSafetyFactorQ: current.magneticSafetyFactorQ,
-                aiReward: current.aiReward,
-                wallIntegrity: current.wallIntegrity,
-                fractalDimensionD: current.fractalDimensionD
-            };
-            setTelemetryHistory(prev => [...prev, snapshot].slice(-30));
-            return current;
-        });
-    }, 500);
     return () => clearInterval(intervalId);
   }, [settings, isSimulating]);
 

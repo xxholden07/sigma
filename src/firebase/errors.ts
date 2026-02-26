@@ -62,7 +62,6 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
 function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
   let authObject: FirebaseAuthObject | null = null;
   
-  // Verifica se o Firebase foi inicializado antes de chamar getAuth()
   if (getApps().length > 0) {
     try {
       const app = getApp();
@@ -71,7 +70,7 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
         authObject = buildAuthObject(auth.currentUser);
       }
     } catch (e) {
-      // Falha silenciosa se o auth ainda não estiver pronto ou configurado
+      // Falha silenciosa
     }
   }
 
