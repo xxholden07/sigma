@@ -106,6 +106,7 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
+    // Função de saneamento para garantir que apenas números válidos sejam salvos no Firestore
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
     const runData = {
