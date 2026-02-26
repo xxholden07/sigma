@@ -25,7 +25,7 @@ import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, 
 import { collection, query, orderBy } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button"; // Importação crucial adicionada
+import { Button } from "@/components/ui/button";
 import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 

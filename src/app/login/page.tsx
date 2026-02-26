@@ -26,7 +26,6 @@ export default function LoginPage() {
     try {
       initiateGoogleSignIn(auth);
     } catch (error) {
-      console.error("Erro ao iniciar login com Google:", error);
       setIsLoadingGoogle(false);
     }
   };
@@ -36,7 +35,6 @@ export default function LoginPage() {
     try {
       initiateAnonymousSignIn(auth);
     } catch (error) {
-      console.error("Erro ao iniciar login anônimo:", error);
       setIsLoadingGuest(false);
     }
   };

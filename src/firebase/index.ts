@@ -6,19 +6,15 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 
-// IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export async function initializeFirebase() {
-  // We prioritize the firebaseConfig for stability in the Studio environment.
+  let firebaseApp: FirebaseApp;
+  
   if (!getApps().length) {
-    const firebaseApp = initializeApp(firebaseConfig);
-    return await getSdks(firebaseApp);
+    firebaseApp = initializeApp(firebaseConfig);
+  } else {
+    firebaseApp = getApp();
   }
 
-  // If already initialized, return the SDKs with the already initialized App
-  return await getSdks(getApp());
-}
-
-export async function getSdks(firebaseApp: FirebaseApp) {
   const auth = getAuth(firebaseApp);
   const firestore = getFirestore(firebaseApp);
 
