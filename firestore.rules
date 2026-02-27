@@ -1,25 +1,6 @@
-/**
- * # Firestore Security Rules for FusionFlow Reactor
- *
- * ## Core Philosophy
- * This ruleset enforces a strict user-ownership security model. All application data is segregated by user, ensuring that a user can only ever access their own information. The rules are secure by default, denying all access unless explicitly and safely granted.
- *
- * ## Data Structure
- * - `/users/{userId}` - Stores the UserProfile.
- * - `/users/{userId}/simulationRuns/{runId}` - Stores simulation results owned by the user.
- *
- * ## Key Security Decisions
- * - **Strict Ownership**: Access is granted only when the authenticated user's UID (`request.auth.uid`) matches the `{userId}` wildcard in the document path.
- * - **No User Enumeration**: Listing the top-level `/users` collection is explicitly disallowed.
- * - **Authorization Independence**: Rules validate ownership without performing expensive `get()` lookups on parent documents by checking the `userId` field denormalized onto documents.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // -------------------------------------------------------------------------
-    // Helper Functions
-    // -------------------------------------------------------------------------
 
     function isSignedIn() {
       return request.auth != null;
@@ -29,37 +10,24 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * On create, validates that a subcollection document's 'userId' field
-     * matches the {userId} from the path.
-     */
     function isOwnedByPathUserOnCreate(userId) {
       return request.resource.data.userId == userId;
     }
 
-    // -------------------------------------------------------------------------
-    // Collection Rules
-    // -------------------------------------------------------------------------
-
     match /users/{userId} {
-      // A user can read and write to their own profile document.
-      // Creation requires the document ID to match the user's UID.
       allow read, write: if isOwner(userId);
-      // Disallow listing all users.
       allow list: if false;
     }
 
-    /**
-     * @description Secures a user's private collection of simulation run history.
-     * @path /users/{userId}/simulationRuns/{simulationRunId}
-     * @allow (get, list) An authenticated user can read their own simulation history.
-     * @allow (create) An authenticated user can create a new simulation run record, ensuring the document's `userId` field matches their own UID.
-     * @deny (update, delete) Simulation history is immutable.
-     */
     match /users/{userId}/simulationRuns/{simulationRunId} {
-      allow get, list: if isOwner(userId);
+      // Leaderboard requires public read access.
+      allow get: if true;
+      // Users can list their own runs.
+      allow list: if isOwner(userId);
+      // Users can create their own runs, ensuring data integrity.
       allow create: if isOwner(userId) && isOwnedByPathUserOnCreate(userId);
-      allow update, delete: if false; // History is immutable
+      // History is immutable.
+      allow update, delete: if false; 
     }
   }
 }
