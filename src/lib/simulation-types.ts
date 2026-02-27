@@ -33,6 +33,7 @@ export interface SimulationRun {
   initialConfinement: number;
   finalEnergyThreshold: number;
   reactionMode: ReactionMode;
+  score?: number;
   // Advanced Metrics for RL Training
   finalLyapunovExponent?: number;
   finalFractalDimensionD?: number;
