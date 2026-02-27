@@ -494,11 +494,11 @@ export function FusionReactorDashboard() {
 
               <SidebarGroup>
                 <SidebarGroupLabel className="flex items-center gap-2">
-                   <Database className="h-3 w-3" />
-                   Dataset de Treinamento
+                   <History className="h-3 w-3" />
+                   Meu Histórico
                 </SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
-                  <SimulationHistoryPanel />
+                  <SimulationHistoryPanel runs={allRuns} isLoading={isUserLoading} />
                 </SidebarGroupContent>
               </SidebarGroup>
             </SidebarContent>
