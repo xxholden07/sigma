@@ -1,11 +1,10 @@
 {
   "hosting": {
-    "source": ".",
+    "public": "prd-download",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "frameworksBackend": {}
+    ]
   }
 }
