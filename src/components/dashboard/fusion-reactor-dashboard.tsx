@@ -78,6 +78,8 @@ export function FusionReactorDashboard() {
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
 
+  const lastHistorySnapshotTime = useRef(performance.now());
+
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'users', user.uid, 'simulationRuns');
@@ -112,7 +114,6 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    // Saneamento de dados para evitar Error 400 no Firestore (NaN/Infinity)
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
     const runData = {
@@ -349,6 +350,30 @@ export function FusionReactorDashboard() {
     }, 200);
     return () => clearInterval(intervalId);
   }, [settings, isSimulating]);
+
+  useEffect(() => {
+    if (!isSimulating) return;
+
+    const now = performance.now();
+    if (now - lastHistorySnapshotTime.current > 500) {
+        const snapshot: TelemetrySnapshot = {
+            timestamp: now,
+            qFactor: telemetry.qFactor,
+            fusionRate: telemetry.fusionRate,
+            particleCount: telemetry.particleCount,
+            relativeTemperature: telemetry.relativeTemperature,
+            magneticSafetyFactorQ: telemetry.magneticSafetyFactorQ,
+            fractalDimensionD: telemetry.fractalDimensionD,
+        };
+
+        setTelemetryHistory(prev => {
+            const newHistory = [...prev, snapshot].slice(-50);
+            return newHistory;
+        });
+        
+        lastHistorySnapshotTime.current = now;
+    }
+  }, [isSimulating, telemetry]);
 
   return (
     <SidebarProvider defaultOpen>
