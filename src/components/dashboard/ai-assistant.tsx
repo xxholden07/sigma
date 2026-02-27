@@ -152,9 +152,9 @@ export function AIAssistant({
           }
 
           if (result.confinementRecommendation === 'increase') {
-             currentOnConfinementChange(parseFloat(Math.min(1, currentSettings.confinement + confStep).toFixed(2)));
+             currentOnConfChange(parseFloat(Math.min(1, currentSettings.confinement + confStep).toFixed(2)));
           } else if (result.confinementRecommendation === 'decrease') {
-             currentOnConfinementChange(parseFloat(Math.max(0, currentSettings.confinement - confStep).toFixed(2)));
+             currentOnConfChange(parseFloat(Math.max(0, currentSettings.confinement - confStep).toFixed(2)));
           }
         }
 
