@@ -1,5 +1,17 @@
-.next/
-.firebase/
-node_modules/
-.env
+# Dependencies
+/node_modules
+
+# Build output
+/.next/
+/out/
+
+# Firebase
+.firebase
+firebase-debug.log
+
+# Local environment variables
 .env.local
+
+# Other
+apphosting.yaml
+*.log
