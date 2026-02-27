@@ -39,10 +39,18 @@ export function AIAssistant({
     if (!topRuns || topRuns.length < 3) {
         return null;
     }
-    // Basic learning: average the settings of the top 3 runs
-    const top3Runs = topRuns.slice(0, 3);
-    const avgTemp = top3Runs.reduce((acc, run) => acc + run.initialTemperature, 0) / 3;
-    const avgConfinement = top3Runs.reduce((acc, run) => acc + run.initialConfinement, 0) / 3;
+
+    // Filter for runs that have the required data to prevent NaN issues
+    const validRuns = topRuns.filter(run => 
+        typeof run.initialTemperature === 'number' && 
+        typeof run.initialConfinement === 'number'
+    );
+
+    if (validRuns.length < 3) return null;
+
+    const top3ValidRuns = validRuns.slice(0, 3);
+    const avgTemp = top3ValidRuns.reduce((acc, run) => acc + run.initialTemperature, 0) / top3ValidRuns.length;
+    const avgConfinement = top3ValidRuns.reduce((acc, run) => acc + run.initialConfinement, 0) / top3ValidRuns.length;
 
     return {
         temperature: avgTemp,
