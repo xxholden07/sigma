@@ -1,40 +1,44 @@
+
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useUser } from "@/firebase";
+import { useEffect } from 'react';
 import { FusionReactorDashboard } from "@/components/dashboard/fusion-reactor-dashboard";
-import { Loader2 } from "lucide-react";
+import { useFirebase, useUser, initiateAnonymousSignIn } from "@/firebase";
+import { useRouter } from 'next/navigation';
+import { LoaderCircle } from 'lucide-react';
 
 export default function Home() {
-  const router = useRouter();
+  const { auth } = useFirebase();
   const { user, isUserLoading } = useUser();
+  const router = useRouter();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      // Se o usuário não está logado e o carregamento terminou, redireciona para a página de login
-      router.push("/login");
+      initiateAnonymousSignIn(auth);
     }
-  }, [user, isUserLoading, router]);
+  }, [isUserLoading, user, auth]);
 
   if (isUserLoading) {
-    // Exibe um spinner enquanto o estado de autenticação está sendo carregado
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
+        <LoaderCircle className="h-16 w-16 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Carregando protocolos JAX/DeepMind...</p>
       </div>
     );
   }
 
   if (!user) {
-    // Se não há usuário e não está carregando (já redirecionou ou vai redirecionar), 
-    // pode retornar null ou um spinner para evitar renderizar o dashboard sem usuário.
-    return null;
+      return null;
   }
 
-  // Se o usuário está logado, renderiza o dashboard
   return (
     <main>
+        <div className="absolute top-0 left-0 w-full z-50 p-4 flex flex-col items-center text-center pointer-events-none">
+            <h1 className="font-headline text-2xl font-bold tracking-tight text-primary">Bem-vindo, Operador de Reator.</h1>
+            <p className="text-sm text-muted-foreground max-w-2xl">
+                Sua missão: controlar nosso reator de fusão Tokamak para gerar energia limpa. Cada tentativa, sucesso ou falha, alimenta o dataset de treinamento do nosso agente de IA, Prometeu. A humanidade conta com você.
+            </p>
+        </div>
       <FusionReactorDashboard />
     </main>
   );

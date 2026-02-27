@@ -20,9 +20,10 @@ import { SimulationCanvas } from "./simulation-canvas";
 import { ControlPanel } from "./control-panel";
 import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
+import { LeaderboardPanel } from "./leaderboard-panel";
 import { FusionIcon } from "../icons/fusion-icon";
 import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, useCollection, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, collectionGroup, query, orderBy, limit } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ export function FusionReactorDashboard() {
     aiReward: 0,
     fractalDimensionD: 1.0,
     simulationDuration: 0,
+    score: 0,
   });
   
   const [peakFusionRate, setPeakFusionRate] = useState(0);
@@ -80,17 +82,27 @@ export function FusionReactorDashboard() {
 
   const lastHistorySnapshotTime = useRef(performance.now());
 
+  // Personal runs query
   const runsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'users', user.uid, 'simulationRuns');
   }, [firestore, user]);
-  
   const { data: rawRuns } = useCollection<SimulationRun>(runsQuery);
-  
   const allRuns = useMemo(() => {
     if (!rawRuns) return [];
     return [...rawRuns].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [rawRuns]);
+
+  // Global leaderboard query
+  const leaderboardQuery = useMemoFirebase(() => {
+      if (!firestore) return null;
+      return query(
+          collectionGroup(firestore, 'simulationRuns'), 
+          orderBy('score', 'desc'), 
+          limit(10)
+      );
+  }, [firestore]);
+  const { data: topRuns, isLoading: isLeaderboardLoading } = useCollection<SimulationRun>(leaderboardQuery);
 
   const simulationStateRef = useRef({
     particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode),
@@ -116,7 +128,8 @@ export function FusionReactorDashboard() {
 
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
-    const runData = {
+    const runData: SimulationRun = {
+        id: `run_${new Date().toISOString()}`,
         userId: user.uid,
         createdAt: new Date().toISOString(),
         durationSeconds: sanitize(((performance.now() - simulationTimeStartRef.current) / 1000)),
@@ -133,6 +146,7 @@ export function FusionReactorDashboard() {
         finalMagneticSafetyFactorQ: sanitize(telemetry.magneticSafetyFactorQ),
         finalWallIntegrity: sanitize(telemetry.wallIntegrity),
         finalAiReward: sanitize(telemetry.aiReward),
+        score: sanitize(telemetry.score),
     };
 
     const runsCollectionRef = collection(firestore, 'users', user.uid, 'simulationRuns');
@@ -167,21 +181,18 @@ export function FusionReactorDashboard() {
     setPeakFusionRate(0);
     setConfinementPenalty(0);
 
-    setTelemetry({
+    setTelemetry(prev => ({...prev,
       totalEnergyGenerated: 0,
       particleCount: newSettings.initialParticleCount,
       fusionRate: 0,
       relativeTemperature: INITIAL_TEMPERATURE,
-      fusionEfficiency: 0,
-      averageKineticEnergy: 0,
       qFactor: 0,
-      lyapunovExponent: 0,
       magneticSafetyFactorQ: 1.0,
       wallIntegrity: 100,
-      aiReward: 0,
       fractalDimensionD: 1.0,
       simulationDuration: 0,
-    });
+      score: 0,
+    }));
     
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
@@ -226,6 +237,7 @@ export function FusionReactorDashboard() {
       const { confinement, energyThreshold, reactionMode, temperature } = settings;
 
       const effectiveConfinement = Math.max(0, confinement - confinementPenalty);
+      let wallDamage = 0;
 
       for (const p of currentParticles) {
         const dx = (SIMULATION_WIDTH / 2) - p.x;
@@ -242,8 +254,14 @@ export function FusionReactorDashboard() {
         p.x += p.vx;
         p.y += p.vy;
 
-        if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) p.vx *= -1;
-        if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) p.vy *= -1;
+        if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) {
+            p.vx *= -1;
+            wallDamage += 0.05;
+        }
+        if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) {
+            p.vy *= -1;
+            wallDamage += 0.05;
+        }
       }
       
       const newParticlesList: Particle[] = [];
@@ -298,6 +316,17 @@ export function FusionReactorDashboard() {
         if (!hasFusedWithAnother) newParticlesList.push(currentParticles[i]);
       }
 
+      if (wallDamage > 0) {
+          setTelemetry(prev => {
+              const newWallIntegrity = Math.max(0, prev.wallIntegrity - wallDamage);
+              if (newWallIntegrity === 0) {
+                  toast({ title: "Falha Crítica do Reator!", description: "A integridade da parede chegou a 0%. Salvando dados da simulação.", variant: "destructive" });
+                  resetSimulation();
+              }
+              return { ...prev, wallIntegrity: newWallIntegrity };
+          });
+      }
+
       simulationStateRef.current.particles = newParticlesList;
       simulationStateRef.current.flashes = currentFlashes.filter(f => {
         f.radius += 1.5;
@@ -311,7 +340,7 @@ export function FusionReactorDashboard() {
 
     animationFrameId = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [settings, isSimulating, confinementPenalty]);
+  }, [settings, isSimulating, confinementPenalty, resetSimulation, toast]);
   
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -335,6 +364,8 @@ export function FusionReactorDashboard() {
             const magSafetyQ = parseFloat((1 + (settings.confinement * 3) / (Math.max(1, settings.temperature / 50))).toFixed(3));
             const fractalTurbulence = Math.abs(magSafetyQ - PHI) * 0.3;
             const dFactor = 1.0 + Math.min(0.9, fractalTurbulence);
+            
+            const newScore = (totalEnergyGeneratedRef.current * 10) + (instantaneousQ * 50) + (duration * 2);
 
             return {
                 ...prev,
@@ -344,7 +375,8 @@ export function FusionReactorDashboard() {
                 simulationDuration: duration,
                 qFactor: instantaneousQ,
                 magneticSafetyFactorQ: magSafetyQ,
-                fractalDimensionD: dFactor
+                fractalDimensionD: dFactor,
+                score: newScore,
             };
         });
     }, 200);
@@ -386,6 +418,11 @@ export function FusionReactorDashboard() {
           </div>
           
           <div className="ml-auto flex items-center gap-3 sm:gap-6">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/50 border border-white/5">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Pontuação:</span>
+                  <span className="text-[11px] font-mono font-bold text-primary">{Math.round(telemetry.score)}</span>
+              </div>
+
             <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/50 border border-white/5">
               <History className="h-3 w-3 text-muted-foreground" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Dataset:</span>
@@ -436,6 +473,7 @@ export function FusionReactorDashboard() {
                     onReset={() => resetSimulation()}
                     onStartIgnition={handleStartIgnition}
                     isSimulating={isSimulating}
+                    topRuns={topRuns}
                   />
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -444,6 +482,13 @@ export function FusionReactorDashboard() {
                 <SidebarGroupLabel>Telemetria em Tempo Real</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
                   <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />
+                </SidebarGroupContent>
+              </SidebarGroup>
+              
+              <SidebarGroup>
+                <SidebarGroupLabel>Ranking Global</SidebarGroupLabel>
+                <SidebarGroupContent className="p-4">
+                   <LeaderboardPanel topRuns={topRuns} isLoading={isLeaderboardLoading} />
                 </SidebarGroupContent>
               </SidebarGroup>
 
@@ -464,13 +509,23 @@ export function FusionReactorDashboard() {
                 {!isSimulating && (
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md gap-4">
                     <div className="flex flex-col items-center gap-2 text-center">
-                      <ShieldAlert className="h-16 w-16 text-primary/40 mb-2 animate-pulse" />
-                      <h2 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">Aguardando Pulso</h2>
-                      <p className="text-sm text-muted-foreground max-w-md italic">Aguardando gatilho de ignição (Manual ou AUTO).</p>
+                        {telemetry.wallIntegrity < 100 ? (
+                            <>
+                                <AlertTriangle className="h-16 w-16 text-destructive animate-pulse" />
+                                <h2 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">Falha na Simulação</h2>
+                                <p className="text-sm text-muted-foreground max-w-md italic">Integridade da parede comprometida. Analisando dados...</p>
+                            </>
+                        ) : (
+                            <>
+                               <ShieldAlert className="h-16 w-16 text-primary/40 mb-2 animate-pulse" />
+                               <h2 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">Aguardando Pulso</h2>
+                               <p className="text-sm text-muted-foreground max-w-md italic">Aguardando gatilho de ignição (Manual ou AUTO).</p>
+                            </>
+                        )}
                     </div>
-                    <Button size="lg" onClick={handleStartIgnition} className="h-16 px-10 text-xl font-bold gap-4 shadow-[0_0_40px_-10px_rgba(59,130,246,0.8)] group hover:scale-105 transition-transform">
-                      <Play className="h-7 w-7 fill-current group-hover:scale-110 transition-transform" />
-                      INICIAR IGNIÇÃO
+                    <Button size="lg" onClick={telemetry.wallIntegrity < 100 ? () => resetSimulation() : handleStartIgnition} className="h-16 px-10 text-xl font-bold gap-4 shadow-[0_0_40px_-10px_rgba(59,130,246,0.8)] group hover:scale-105 transition-transform">
+                      {telemetry.wallIntegrity < 100 ? <RotateCcw className="h-7 w-7 fill-current group-hover:scale-110 transition-transform" /> : <Play className="h-7 w-7 fill-current group-hover:scale-110 transition-transform" />}
+                      {telemetry.wallIntegrity < 100 ? "REINICIAR" : "INICIAR IGNIÇÃO"}
                     </Button>
                   </div>
                 )}
