@@ -6,11 +6,7 @@ import { useUser } from "@/firebase";
 import { FusionReactorDashboard } from "@/components/dashboard/fusion-reactor-dashboard";
 import { Loader2 } from "lucide-react";
 
-export default function Home({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
+export default function Home() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
 
