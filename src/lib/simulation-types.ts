@@ -42,16 +42,11 @@ export interface SimulationRun {
 }
 
 export interface TelemetrySnapshot {
-  simulationDurationSeconds: number;
-  relativeTemperature: number;
-  confinement: number;
-  fusionRate: number;
-  totalEnergyGenerated: number;
-  numParticles: number;
-  qFactor: number;
-  lyapunovExponent: number;
-  magneticSafetyFactorQ: number;
-  aiReward: number;
-  wallIntegrity: number;
-  fractalDimensionD: number; // Dimensão fractal da borda (D)
+    timestamp: number;
+    qFactor: number;
+    fusionRate: number;
+    particleCount: number;
+    relativeTemperature: number;
+    magneticSafetyFactorQ: number;
+    fractalDimensionD: number;
 }

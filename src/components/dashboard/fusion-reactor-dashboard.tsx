@@ -361,7 +361,7 @@ export function FusionReactorDashboard() {
             qFactor: telemetry.qFactor,
             fusionRate: telemetry.fusionRate,
             particleCount: telemetry.particleCount,
-            relativeTemperature: telemetry.relativeTemperature,
+            relativeTemperature: settings.temperature,
             magneticSafetyFactorQ: telemetry.magneticSafetyFactorQ,
             fractalDimensionD: telemetry.fractalDimensionD,
         };
@@ -373,7 +373,7 @@ export function FusionReactorDashboard() {
         
         lastHistorySnapshotTime.current = now;
     }
-  }, [isSimulating, telemetry]);
+  }, [isSimulating, telemetry, settings.temperature]);
 
   return (
     <SidebarProvider defaultOpen>
