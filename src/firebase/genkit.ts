@@ -1,8 +1,7 @@
 'use client';
 
-import { configureGenkit } from '@google-cloud/genkit';
-import { googleAI } from '@google-cloud/genkit-google-ai';
-import { GenerationUsage, defineAgent, defineModel, prompt } from '@google-cloud/genkit/ai';
+import { initializeGenkit, GenerationUsage, defineAgent, defineModel, prompt, configureGenkit } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 let genkitInitialized = false;
 
