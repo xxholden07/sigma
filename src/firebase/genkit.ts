@@ -1,1 +1,25 @@
-\n\"use client\";\n\nimport { initializeGenkit } from \'@genkit-ai/core\';\nimport { genkit, GenerationUsage, defineAgent, defineModel, prompt, configureGenkit } from \'@genkit-ai/core/tools\';\nimport { googleAI } from \'@genkit-ai/google-ai\';\nimport { googleCloud } from \'@genkit-ai/google-cloud\';\n\nlet genkitInitialized = false;\n\nexport function useGenkit(isClient: boolean) {\n  if (isClient && !genkitInitialized) {\n    configureGenkit({\n      plugins: [\n        googleAI(),\n        googleCloud(),\n      ],\n      logLevel: \'warn\',\n      enableTracingAndMetrics: true,\n    });\n    genkitInitialized = true;\n  }\n}\n\n// Re-export core Genkit functions so components don\'t have to import them directly.\nexport {\ genkit, GenerationUsage, defineAgent, defineModel, prompt };\n
+'use client';
+
+import { initializeGenkit } from '@genkit-ai/core';
+import { genkit, GenerationUsage, defineAgent, defineModel, prompt, configureGenkit } from '@genkit-ai/core/tools';
+import { googleAI } from '@genkit-ai/google-ai';
+import { googleCloud } from '@genkit-ai/google-cloud';
+
+let genkitInitialized = false;
+
+export function useGenkit(isClient: boolean) {
+  if (isClient && !genkitInitialized) {
+    configureGenkit({
+      plugins: [
+        googleAI(),
+        googleCloud(),
+      ],
+      logLevel: 'warn',
+      enableTracingAndMetrics: true,
+    });
+    genkitInitialized = true;
+  }
+}
+
+// Re-export core Genkit functions so components don't have to import them directly.
+export { genkit, GenerationUsage, defineAgent, defineModel, prompt };
