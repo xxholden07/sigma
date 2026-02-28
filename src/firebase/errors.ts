@@ -1,3 +1,4 @@
+
 'use client';
 import { getAuth, type User } from 'firebase/auth';
 import { getApps, getApp } from 'firebase/app';
@@ -72,7 +73,7 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
         }
       }
     } catch (e) {
-      // Falha silenciosa se o Firebase não estiver pronto
+      // Silent fail if Firebase is not ready
     }
   }
 
