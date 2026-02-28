@@ -36,16 +36,28 @@ export function useCollection<T = any>(
   type StateDataType = ResultItemType[] | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Start with loading true
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // If the query is null or undefined, reset state and do nothing.
-    if (!memoizedTargetRefOrQuery) {
+    let path: string | undefined;
+    if (memoizedTargetRefOrQuery) {
+      try {
+        path =
+          memoizedTargetRefOrQuery.type === 'collection'
+            ? (memoizedTargetRefOrQuery as CollectionReference).path
+            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
+      } catch (e) {
+        // Silently ignore if path cannot be determined to be safe.
+      }
+    }
+
+    // If the query is null, undefined, or points to the root, reset state and do nothing.
+    if (!memoizedTargetRefOrQuery || !path) {
       setData(null);
-      setIsLoading(false); // No query, so not loading.
+      setIsLoading(false);
       setError(null);
-      return () => {}; // Return an empty cleanup function
+      return () => {};
     }
 
     setIsLoading(true);
@@ -60,14 +72,9 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        const path: string =
-          memoizedTargetRefOrQuery.type === 'collection'
-            ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
-
         const contextualError = new FirestorePermissionError({
           operation: 'list',
-          path,
+          path: path, // Use the path we determined earlier
         });
 
         setError(contextualError);
@@ -78,7 +85,6 @@ export function useCollection<T = any>(
       }
     );
 
-    // Cleanup function to unsubscribe when the query changes or component unmounts.
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]);
 
