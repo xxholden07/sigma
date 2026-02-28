@@ -1,8 +1,8 @@
 'use client';
 
-import { initializeGenkit, GenerationUsage, defineAgent, defineModel, prompt, configureGenkit } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/google-ai';
-import { googleCloud } from '@genkit-ai/google-cloud';
+import { configureGenkit } from '@google-cloud/genkit';
+import { googleAI } from '@google-cloud/genkit-google-ai';
+import { GenerationUsage, defineAgent, defineModel, prompt } from '@google-cloud/genkit/ai';
 
 let genkitInitialized = false;
 
@@ -11,7 +11,6 @@ export function useGenkit(isClient: boolean) {
     configureGenkit({
       plugins: [
         googleAI(),
-        googleCloud(),
       ],
       logLevel: 'warn',
       enableTracingAndMetrics: true,
