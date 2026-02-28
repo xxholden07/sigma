@@ -1,149 +1,177 @@
 
 "use client";
 
-import type { TelemetrySnapshot, ReactionMode, SimulationRun } from "@/lib/simulation-types";
-import { useState, useEffect, useRef, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Bot, Lightbulb, Zap, Thermometer, Gauge, Sparkles, BrainCircuit } from 'lucide-react';
-import { Badge } from "@/components/ui/badge";
+import { useState, useEffect, useCallback } from 'react';
+import type { TelemetrySnapshot, SimulationSettings, SimulationRun } from '@/lib/simulation-types';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { BotMessageSquare, Sparkles, BookCopy, ArrowRight, BrainCircuit, Activity } from 'lucide-react';
+import { useGenkit, generate, GenerationUsage } from '@/firebase/genkit';
+import { reactorAgent, ReactorAgentAction } from '@/ai/reactor-agent';
+import { Badge } from '@/components/ui/badge';
 
 interface AIAssistantProps {
   telemetryHistory: TelemetrySnapshot[];
-  settings: { temperature: number; confinement: number; reactionMode: ReactionMode };
+  settings: SimulationSettings;
   currentReward: number;
   onTemperatureChange: (temp: number) => void;
   onConfinementChange: (confinement: number) => void;
-  onReactionModeChange: (mode: ReactionMode) => void;
+  onReactionModeChange: (mode: 'DT' | 'DD_DHe3') => void;
   onReset: () => void;
-  onStartIgnition: () => void;
+  onStartIgnition: (forceReset?: boolean) => void;
   isSimulating: boolean;
-  topRuns?: SimulationRun[];
+  topRuns: SimulationRun[] | null;
 }
-
-const AUTOPILOT_INTERVAL = 2000; // AI makes decisions every 2 seconds
 
 export function AIAssistant({
   telemetryHistory,
   settings,
+  currentReward,
   onTemperatureChange,
   onConfinementChange,
-  isSimulating,
+  onReactionModeChange,
+  onReset,
   onStartIgnition,
+  isSimulating,
   topRuns,
 }: AIAssistantProps) {
   const [autopilot, setAutopilot] = useState(false);
-  const [aiAction, setAiAction] = useState<string>("Aguardando dados.");
-  const autopilotIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const learnedInsights = useMemo(() => {
-    if (!topRuns || topRuns.length < 3) {
-        return null;
-    }
-
-    // Filter for runs that have the required data to prevent NaN issues
-    const validRuns = topRuns.filter(run => 
-        typeof run.initialTemperature === 'number' && 
-        typeof run.initialConfinement === 'number'
-    );
-
-    if (validRuns.length < 3) return null;
-
-    const top3ValidRuns = validRuns.slice(0, 3);
-    const avgTemp = top3ValidRuns.reduce((acc, run) => acc + run.initialTemperature, 0) / top3ValidRuns.length;
-    const avgConfinement = top3ValidRuns.reduce((acc, run) => acc + run.initialConfinement, 0) / top3ValidRuns.length;
-
-    return {
-        temperature: avgTemp,
-        confinement: avgConfinement,
-    }
-  }, [topRuns]);
+  const [isThinking, setIsThinking] = useState(false);
+  const [analysis, setAnalysis] = useState<ReactorAgentAction | null>(null);
+  const [usage, setUsage] = useState<GenerationUsage | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    if (autopilot && isSimulating) {
-      autopilotIntervalRef.current = setInterval(() => {
-        const lastSnapshot = telemetryHistory[telemetryHistory.length - 1];
-        if (!lastSnapshot) {
-          setAiAction("Dados de telemetria insuficientes.");
-          return;
-        }
+    setIsClient(true);
+  }, []);
 
-        const { qFactor, fusionRate, magneticSafetyFactorQ, relativeTemperature } = lastSnapshot;
-        let actionDescription = "";
+  useGenkit(isClient);
 
-        // Rule-based decision making, now with learned insights!
-        if (learnedInsights && qFactor < 0.8) {
-            const targetTemp = learnedInsights.temperature;
-            onTemperatureChange(targetTemp);
-            actionDescription = `Q-factor baixo. Ajustando para temperatura ótima aprendida (${targetTemp.toFixed(0)}%).`;
-        } else if (qFactor < 0.5 && relativeTemperature < 90) {
-          const newTemp = Math.min(settings.temperature + 5, 100);
-          onTemperatureChange(newTemp);
-          actionDescription = `Q-factor baixo (${qFactor.toFixed(2)}). Aumentando temperatura para ${newTemp}.`;
-        } else if (qFactor > 1.5 && fusionRate > 10) {
-            const newConfinement = Math.min(settings.confinement + 0.05, 1.0);
-            onConfinementChange(newConfinement);
-            actionDescription = `Reação estável. Otimizando confinamento para ${newConfinement.toFixed(2)}.`;
-        } else if (magneticSafetyFactorQ < 1.5) {
-            const newConfinement = Math.max(settings.confinement - 0.1, 0.1);
-            onConfinementChange(newConfinement);
-            actionDescription = `Instabilidade magnética (q=${magneticSafetyFactorQ.toFixed(2)}). Reduzindo confinamento.`;
-        } else if (relativeTemperature > 95) {
-            const newTemp = Math.max(settings.temperature - 5, 70);
-            onTemperatureChange(newTemp);
-            actionDescription = "Temperatura crítica. Reduzindo para evitar danos.";
-        } else {
-          actionDescription = "Monitorando. Reator em estado nominal.";
-        }
-        
-        setAiAction(actionDescription);
-
-      }, AUTOPILOT_INTERVAL);
-    } else {
-      if (autopilotIntervalRef.current) {
-        clearInterval(autopilotIntervalRef.current);
-      }
+  const handleToggleAutopilot = (checked: boolean) => {
+    setAutopilot(checked);
+    if (checked) {
+      onStartIgnition(true); // Force reset when autopilot is engaged
     }
-
-    return () => {
-      if (autopilotIntervalRef.current) {
-        clearInterval(autopilotIntervalRef.current);
-      }
-    };
-  }, [autopilot, isSimulating, telemetryHistory, onTemperatureChange, onConfinementChange, settings, learnedInsights]);
-
-  const handleToggleAutopilot = () => {
-      if (!autopilot && !isSimulating) {
-          onStartIgnition();
-      }
-      setAutopilot(prev => !prev);
-      setAiAction(autopilot ? "Piloto automático desativado." : "Piloto automático ativado. Assumindo controle...")
   };
 
-  return (
-    <div className="flex flex-col gap-4">
-        <div className="flex items-start justify-between">
-            <div className="flex flex-col">
-                <h3 className="font-bold flex items-center gap-2"><Bot className="h-5 w-5" /> Status do Agente</h3>
-                <p className="text-xs text-muted-foreground italic mt-1">{aiAction}</p>
-            </div>
-            <Badge variant={autopilot ? 'default' : 'outline'} className={`transition-all ${autopilot ? 'bg-green-500/20 text-green-400' : ''}`}>
-                {autopilot ? "ATIVO" : "INATIVO"}
-            </Badge>
-        </div>
+  const performAnalysis = useCallback(async () => {
+    setIsThinking(true);
+    setAnalysis(null);
+    try {
+      const response = await generate({
+        model: reactorAgent,
+        prompt: {
+          telemetryHistory: telemetryHistory.slice(-10),
+          settings,
+          currentReward,
+          topRuns: topRuns ?? [],
+        },
+        config: { temperature: 0.7 },
+      });
 
-      <Button onClick={handleToggleAutopilot}>
-        <Sparkles className="h-4 w-4 mr-2" />
-        {autopilot ? "Desativar Piloto Automático" : "Ativar Piloto Automático"}
+      const action = response.output();
+      setAnalysis(action);
+      setUsage(response.usage());
+
+      if (autopilot && action) {
+        setTimeout(() => {
+            if (action.decision === "adjust_parameters") {
+                onTemperatureChange(action.parameters.temperature);
+                onConfinementChange(action.parameters.confinement);
+                if (action.parameters.reactionMode && settings.reactionMode !== action.parameters.reactionMode) {
+                    onReactionModeChange(action.parameters.reactionMode);
+                }
+                // Restart simulation after adjustments
+                onStartIgnition(true);
+            } else if (action.decision === "restart_simulation") {
+                onReset();
+            }
+        }, 2000); // Wait 2 seconds before applying
+      }
+    } catch (error) {
+      console.error("Error during AI analysis:", error);
+    } finally {
+      setIsThinking(false);
+    }
+  }, [telemetryHistory, settings, currentReward, topRuns, autopilot, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition]);
+
+  useEffect(() => {
+    if (autopilot) {
+      const analysisInterval = setInterval(() => {
+        // Only run analysis if simulation is active or if it's not active but we want to start it.
+        if (isSimulating) {
+            performAnalysis();
+        }
+      }, 10000); // Analyze every 10 seconds
+
+      return () => clearInterval(analysisInterval);
+    }
+  }, [autopilot, isSimulating, performAnalysis]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+            <BrainCircuit className="h-5 w-5 text-primary" />
+            <Label htmlFor="autopilot-switch" className="text-sm font-bold text-foreground">
+            Piloto Automático
+            </Label>
+        </div>
+        <Switch
+          id="autopilot-switch"
+          checked={autopilot}
+          onCheckedChange={handleToggleAutopilot}
+          aria-label="Toggle Autopilot"
+        />
+      </div>
+
+      {autopilot && (
+        <div className="text-xs text-center text-muted-foreground italic">
+          O agente analisará a telemetria a cada 10s e ajustará o reator.
+        </div>
+      )}
+
+      <Button onClick={performAnalysis} disabled={isThinking || telemetryHistory.length === 0} className="w-full gap-2">
+        {isThinking ? (
+            <>
+                <Sparkles className="h-4 w-4 animate-spin" />
+                Analisando Telemetria...
+            </>
+        ) : (
+            <>
+                <Sparkles className="h-4 w-4" />
+                Forçar Análise do Agente
+            </>
+        )}
       </Button>
 
-        {learnedInsights && (
-            <div className="p-3 bg-sky-950/70 rounded-lg border border-sky-400/30">
-                <h4 className="font-bold text-sm flex items-center gap-2 text-sky-300"><BrainCircuit className="h-5 w-5"/>Insight Aprendido</h4>
-                <p className="text-xs text-muted-foreground mt-1">
-                    Com base nas melhores simulações, uma temperatura inicial em torno de <span className="font-bold text-sky-400">{learnedInsights.temperature.toFixed(0)}%</span> e um confinamento de <span className="font-bold text-sky-400">{learnedInsights.confinement.toFixed(2)}</span> parecem ser ideais.
-                </p>
+      {analysis && (
+        <div className="space-y-3 rounded-lg border border-primary/20 bg-slate-900/50 p-3 text-xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <BotMessageSquare className="h-5 w-5 text-primary flex-shrink-0" />
+            <p className="font-bold text-primary">Análise do Agente</p>
+          </div>
+          <p className="text-muted-foreground">
+            <span className="font-bold">Decisão:</span> {analysis.reasoning}
+          </p>
+          {analysis.decision === 'adjust_parameters' && (
+            <div className="flex items-center gap-2 text-primary/80">
+                <Activity className="h-4 w-4" />
+                Ajustando para{' '}
+                <Badge variant="outline" className="text-xs">T: {analysis.parameters.temperature}°C</Badge>
+                <Badge variant="outline" className="text-xs">C: {analysis.parameters.confinement}</Badge>
+                {analysis.parameters.reactionMode && <Badge variant="outline">{analysis.parameters.reactionMode}</Badge>}
             </div>
-        )}
+          )}
+          {analysis.decision === 'restart_simulation' && (
+             <div className="flex items-center gap-2 text-amber-400/80">
+                <ArrowRight className="h-4 w-4" />
+                <p>O agente recomendou reiniciar a simulação.</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

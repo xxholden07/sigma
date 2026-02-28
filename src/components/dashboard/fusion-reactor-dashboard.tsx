@@ -126,7 +126,6 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
-    // Sanitize numeric values to avoid NaN/Infinity errors in Firestore
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
     const runData: SimulationRun = {
@@ -155,7 +154,9 @@ export function FusionReactorDashboard() {
   }, [user, firestore, peakFusionRate, settings, telemetry]);
 
   const resetSimulation = useCallback((newMode?: ReactionMode) => {
-    handleSaveSimulation();
+    if (isSimulating) {
+        handleSaveSimulation();
+    }
     setIsSimulating(false);
 
     const reactionMode = typeof newMode === 'string' ? newMode : settings.reactionMode;
@@ -197,13 +198,23 @@ export function FusionReactorDashboard() {
     
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
-  }, [handleSaveSimulation, settings]);
+  }, [handleSaveSimulation, settings, isSimulating]);
 
-  const handleStartIgnition = useCallback(() => {
+  const handleStopSimulation = useCallback(() => {
+    setIsSimulating(false);
+    handleSaveSimulation();
+  }, [handleSaveSimulation]);
+
+  const handleStartIgnition = useCallback((forceReset = false) => {
+    if (isSimulating && !forceReset) return;
+    if (forceReset) {
+        resetSimulation();
+    }
     setIsSimulating(true);
     simulationTimeStartRef.current = performance.now();
     lastFusionRateUpdateTime.current = performance.now();
-  }, []);
+    lastHistorySnapshotTime.current = performance.now();
+  }, [isSimulating, resetSimulation]);
 
   const handleTemperatureChange = useCallback((newTemp: number) => {
     setSettings(s => ({...s, temperature: newTemp}));
@@ -524,7 +535,7 @@ export function FusionReactorDashboard() {
                             </>
                         )}
                     </div>
-                    <Button size="lg" onClick={telemetry.wallIntegrity < 100 ? () => resetSimulation() : handleStartIgnition} className="h-16 px-10 text-xl font-bold gap-4 shadow-[0_0_40px_-10px_rgba(59,130,246,0.8)] group hover:scale-105 transition-transform">
+                    <Button size="lg" onClick={telemetry.wallIntegrity < 100 ? () => resetSimulation() : () => handleStartIgnition()} className="h-16 px-10 text-xl font-bold gap-4 shadow-[0_0_40px_-10px_rgba(59,130,246,0.8)] group hover:scale-105 transition-transform">
                       {telemetry.wallIntegrity < 100 ? <RotateCcw className="h-7 w-7 fill-current group-hover:scale-110 transition-transform" /> : <Play className="h-7 w-7 fill-current group-hover:scale-110 transition-transform" />}
                       {telemetry.wallIntegrity < 100 ? "REINICIAR" : "INICIAR IGNIÇÃO"}
                     </Button>
