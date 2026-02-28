@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -93,7 +92,7 @@ export function FusionReactorDashboard() {
     return [...rawRuns].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [rawRuns]);
 
-  // Global leaderboard query
+  // Global leaderboard query - Requires collectionGroup permissions
   const leaderboardQuery = useMemoFirebase(() => {
       if (!firestore) return null;
       return query(
@@ -126,6 +125,7 @@ export function FusionReactorDashboard() {
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
 
+    // Sanitize numeric values to avoid NaN/Infinity errors in Firestore
     const sanitize = (val: any) => (typeof val === 'number' && isFinite(val) ? val : 0);
 
     const runData: SimulationRun = {

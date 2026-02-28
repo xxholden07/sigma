@@ -1,9 +1,8 @@
-
 'use client';
 import { getAuth, type User } from 'firebase/auth';
 import { getApps, getApp } from 'firebase/app';
 
-type SecurityRuleContext = {
+export type SecurityRuleContext = {
   path: string;
   operation: 'get' | 'list' | 'create' | 'update' | 'delete' | 'write';
   requestResourceData?: any;
@@ -62,12 +61,15 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
 function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
   let authObject: FirebaseAuthObject | null = null;
   
-  if (typeof window !== 'undefined' && getApps().length > 0) {
+  if (typeof window !== 'undefined') {
     try {
-      const app = getApp();
-      const auth = getAuth(app);
-      if (auth.currentUser) {
-        authObject = buildAuthObject(auth.currentUser);
+      const apps = getApps();
+      if (apps.length > 0) {
+        const app = getApp();
+        const auth = getAuth(app);
+        if (auth.currentUser) {
+          authObject = buildAuthObject(auth.currentUser);
+        }
       }
     } catch (e) {
       // Falha silenciosa se o Firebase não estiver pronto

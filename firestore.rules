@@ -19,14 +19,15 @@ service cloud.firestore {
       allow list: if false;
     }
 
+    // Permite consultas de grupo de coleção para o ranking global
+    match /{path=**}/simulationRuns/{simulationRunId} {
+      allow read: if true;
+    }
+
     match /users/{userId}/simulationRuns/{simulationRunId} {
-      // Leaderboard requires public read access.
-      allow get: if true;
-      // Users can list their own runs.
-      allow list: if isOwner(userId);
-      // Users can create their own runs, ensuring data integrity.
+      // Usuários podem criar suas próprias execuções
       allow create: if isOwner(userId) && isOwnedByPathUserOnCreate(userId);
-      // History is immutable.
+      // Histórico é imutável após a criação
       allow update, delete: if false; 
     }
   }
