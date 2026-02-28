@@ -1,7 +1,6 @@
 'use client';
 
-import { initializeGenkit } from '@genkit-ai/core';
-import { genkit, GenerationUsage, defineAgent, defineModel, prompt, configureGenkit } from '@genkit-ai/core/tools';
+import { initializeGenkit, GenerationUsage, defineAgent, defineModel, prompt, configureGenkit } from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/google-ai';
 import { googleCloud } from '@genkit-ai/google-cloud';
 
@@ -22,4 +21,4 @@ export function useGenkit(isClient: boolean) {
 }
 
 // Re-export core Genkit functions so components don't have to import them directly.
-export { genkit, GenerationUsage, defineAgent, defineModel, prompt };
+export { GenerationUsage, defineAgent, defineModel, prompt };
