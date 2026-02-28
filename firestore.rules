@@ -26,6 +26,8 @@ service cloud.firestore {
     }
 
     match /users/{userId}/simulationRuns/{simulationRunId} {
+      // Usuários podem ler e listar suas próprias execuções
+      allow read, list: if isOwner(userId);
       // Usuários podem criar suas próprias execuções
       allow create: if isOwner(userId) && isOwnedByPathUserOnCreate(userId);
       // Histórico é imutável após a criação
