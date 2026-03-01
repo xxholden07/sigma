@@ -16,28 +16,36 @@ export default function LoginPage() {
   const [isLoadingGuest, setIsLoadingGuest] = useState(false);
 
   useEffect(() => {
+    console.log('[LoginPage] Estado:', { isUserLoading, user: user?.email || null, auth: !!auth });
     if (!isUserLoading && user) {
+      console.log('[LoginPage] Usuário logado, redirecionando para /...');
       router.push("/");
     }
   }, [user, isUserLoading, router]);
 
   const handleGoogleSignIn = async () => {
+    console.log('[LoginPage] Iniciando login com Google...');
     setIsLoadingGoogle(true);
     try {
       initiateGoogleSignIn(auth);
     } catch (error) {
+      console.error('[LoginPage] Erro no login Google:', error);
       setIsLoadingGoogle(false);
     }
   };
 
   const handleGuestSignIn = async () => {
+    console.log('[LoginPage] Iniciando login anônimo...');
     setIsLoadingGuest(true);
     try {
       initiateAnonymousSignIn(auth);
     } catch (error) {
+      console.error('[LoginPage] Erro no login anônimo:', error);
       setIsLoadingGuest(false);
     }
   };
+
+  console.log('[LoginPage] Render - isUserLoading:', isUserLoading, 'user:', user?.email || null);
 
   if (isUserLoading || user) {
     return (

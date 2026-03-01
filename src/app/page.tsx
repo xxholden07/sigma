@@ -12,7 +12,9 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
+    console.log('[Auth] Estado:', { isUserLoading, user: user?.email || null });
     if (!isUserLoading && !user) {
+      console.log('[Auth] Redirecionando para /login...');
       router.push('/login');
     }
   }, [isUserLoading, user, router]);
@@ -27,9 +29,11 @@ export default function Home() {
   }
 
   if (!user) {
+      console.log('[Auth] Usuário não autenticado, aguardando redirecionamento...');
       return null;
   }
 
+  console.log('[Auth] ✅ Usuário autenticado:', user.email);
   return (
     <main>
       <FusionReactorDashboard />
