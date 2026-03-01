@@ -7,11 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { BotMessageSquare, Sparkles, BrainCircuit, Activity, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { generateReactorAnalysis } from '@/app/actions'; // Import the Server Action
-import type { ReactorAgentActionSchema } from '@/app/actions'; // Import the type
-import { z } from 'zod';
-
-type ReactorAgentAction = z.infer<typeof ReactorAgentActionSchema>;
+import { generateReactorAnalysis } from '@/app/actions';
+import type { ReactorAgentAction } from '@/lib/ai-schemas';
 
 interface AIAssistantProps {
   telemetryHistory: TelemetrySnapshot[];
@@ -68,18 +65,25 @@ export function AIAssistant({
       setAnalysis(action);
 
       if (autopilot && action) {
-        setTimeout(() => {
-          if (action.decision === "adjust_parameters" && action.parameters) {
-            onTemperatureChange(action.parameters.temperature!);
-            onConfinementChange(action.parameters.confinement!);
-            if (action.parameters.reactionMode && settings.reactionMode !== action.parameters.reactionMode) {
-              onReactionModeChange(action.parameters.reactionMode);
-            }
-            onStartIgnition(true);
-          } else if (action.decision === "restart_simulation") {
-            onReset();
+        // Aplicar ação imediatamente para o piloto automático
+        if (action.decision === "adjust_parameters" && action.parameters) {
+          const newTemp = action.parameters.temperature ?? settings.temperature;
+          const newConf = action.parameters.confinement ?? settings.confinement;
+          
+          console.log(`[Prometheus] Ajustando: T=${newTemp}, C=${newConf}`);
+          onTemperatureChange(newTemp);
+          onConfinementChange(newConf);
+          
+          if (action.parameters.reactionMode && settings.reactionMode !== action.parameters.reactionMode) {
+            onReactionModeChange(action.parameters.reactionMode);
           }
-        }, 2000);
+        } else if (action.decision === "restart_simulation") {
+          console.log(`[Prometheus] Reiniciando simulação`);
+          onReset();
+          onStartIgnition(true);
+        } else {
+          console.log(`[Prometheus] Mantendo parâmetros atuais`);
+        }
       }
     } catch (error) {
       console.error("Error during AI analysis:", error);
