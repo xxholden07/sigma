@@ -11,10 +11,21 @@ import {
   ENERGY_THRESHOLD,
   DT_FUSION_ENERGY_MEV,
   DHE3_FUSION_ENERGY_MEV,
+  DD_FUSION_ENERGY_MEV,
   PARTICLE_RADIUS,
   SIMULATION_WIDTH,
   SIMULATION_HEIGHT,
   PHI,
+  // Física de fusão realista
+  DT_CROSS_SECTION_PEAK_KEV,
+  DT_CROSS_SECTION_MAX,
+  DD_CROSS_SECTION_PEAK_KEV,
+  DD_CROSS_SECTION_MAX,
+  DHE3_CROSS_SECTION_PEAK_KEV,
+  DHE3_CROSS_SECTION_MAX,
+  GAMOW_CONSTANT,
+  Q_BREAKEVEN,
+  Q_IGNITION,
 } from "@/lib/simulation-constants";
 import { SimulationCanvas } from "./simulation-canvas";
 import { ControlPanel } from "./control-panel";
@@ -27,20 +38,191 @@ import { collection, collectionGroup, query, orderBy, limit } from "firebase/fir
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History, RotateCcw } from "lucide-react";
+import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History, RotateCcw, Orbit, Atom } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { PhysicsMode } from "@/lib/simulation-types";
 
-function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
+// Constants for orbital mode
+const ORBIT_LAYERS = 8;
+const CENTER_X = SIMULATION_WIDTH / 2;
+const CENTER_Y = SIMULATION_HEIGHT / 2;
+const MAX_ORBIT_RADIUS = Math.min(SIMULATION_WIDTH, SIMULATION_HEIGHT) * 0.42;
+
+// ============================================================
+// FÍSICA DE FUSÃO NUCLEAR - FUNÇÕES DE CÁLCULO
+// ============================================================
+
+/**
+ * Calcula a energia cinética relativa de duas partículas colidindo
+ * E_cm = 0.5 * μ * v_rel²  (energia no centro de massa)
+ * onde μ = m1*m2/(m1+m2) é a massa reduzida
+ * 
+ * Na simulação, convertemos velocidade → keV usando escala:
+ * v² * TEMP_SCALE → keV (temperatura relativa como proxy de energia)
+ */
+function calculateCollisionEnergy(
+  p1: Particle, 
+  p2: Particle, 
+  temperature: number
+): number {
+  // Velocidade relativa
+  const vRelX = p1.vx - p2.vx;
+  const vRelY = p1.vy - p2.vy;
+  const vRelSquared = vRelX * vRelX + vRelY * vRelY;
+  
+  // Energia cinética relativa (escala arbitrária → keV)
+  // A temperatura do plasma é o fator dominante
+  // T = 100 → ~10 keV, T = 200 → ~20 keV (escala simplificada)
+  const thermalEnergy = temperature * 0.1; // keV base da temperatura
+  const kineticEnergy = vRelSquared * 0.5; // Contribuição cinética
+  
+  // Energia total no centro de massa (keV)
+  return thermalEnergy + kineticEnergy;
+}
+
+/**
+ * Calcula a seção cruzada de fusão σ(E) usando fórmula de Gamow
+ * 
+ * A seção cruzada de fusão termonuclear é dada por:
+ * σ(E) = S(E)/E * exp(-sqrt(E_G/E))
+ * 
+ * onde:
+ * - S(E) é o fator astrofísico S (varia lentamente com E)
+ * - E_G é a energia de Gamow (barreira de Coulomb + tunelamento)
+ * - E é a energia no centro de massa
+ * 
+ * Para D-T: E_G ≈ 986 keV
+ * Para D-D: E_G ≈ 986 keV (mesma carga, mas pico diferente)
+ */
+function calculateFusionCrossSection(
+  energyKeV: number,
+  reactionType: 'DT' | 'DD' | 'DHe3'
+): number {
+  if (energyKeV <= 0) return 0;
+  
+  // Parâmetros por tipo de reação
+  let peakEnergy: number;
+  let maxCrossSection: number;
+  let gamowEnergy: number;
+  
+  switch (reactionType) {
+    case 'DT':
+      peakEnergy = DT_CROSS_SECTION_PEAK_KEV;      // 64 keV
+      maxCrossSection = DT_CROSS_SECTION_MAX;      // 5.0 barns
+      gamowEnergy = 986;                            // keV
+      break;
+    case 'DD':
+      peakEnergy = DD_CROSS_SECTION_PEAK_KEV;      // 1250 keV
+      maxCrossSection = DD_CROSS_SECTION_MAX;      // 0.096 barns
+      gamowEnergy = 986;
+      break;
+    case 'DHe3':
+      peakEnergy = DHE3_CROSS_SECTION_PEAK_KEV;    // 250 keV
+      maxCrossSection = DHE3_CROSS_SECTION_MAX;    // 0.9 barns
+      gamowEnergy = 1220;                           // keV (maior carga do He3)
+      break;
+    default:
+      return 0;
+  }
+  
+  // Fator de Gamow: exp(-sqrt(E_G/E))
+  // Representa probabilidade de tunelamento quântico através da barreira de Coulomb
+  const gamowFactor = Math.exp(-Math.sqrt(gamowEnergy / energyKeV));
+  
+  // Fator S(E) / E - máximo próximo ao pico
+  // Usamos uma gaussiana centrada no pico para simplificar
+  const energyRatio = energyKeV / peakEnergy;
+  const peakFactor = Math.exp(-Math.pow(Math.log(energyRatio), 2) * 2);
+  
+  // Seção cruzada final (barns, escala relativa)
+  const crossSection = maxCrossSection * gamowFactor * peakFactor;
+  
+  return crossSection;
+}
+
+/**
+ * Calcula a probabilidade de fusão dada a seção cruzada e densidade
+ * 
+ * Taxa de reação: R = n1 * n2 * <σv>
+ * Probabilidade por colisão: P = σ * v * dt
+ * 
+ * Na simulação, usamos uma simplificação:
+ * P_fusion ∝ σ(E) * confinement * densityFactor
+ */
+function calculateFusionProbability(
+  crossSection: number,
+  confinement: number,
+  particleCount: number
+): number {
+  if (crossSection <= 0) return 0;
+  
+  // Fator de densidade: mais partículas = mais colisões
+  const densityFactor = Math.min(1, particleCount / 100);
+  
+  // Fator de confinamento: melhor confinamento = mais tempo para reagir
+  const confinementBoost = 0.5 + confinement * 2;
+  
+  // Probabilidade final (0 a 1)
+  // crossSection está em barns (1 barn = 10^-24 cm²)
+  // Escalamos para obter probabilidades razoáveis na simulação
+  const probability = Math.min(0.95, crossSection * 0.1 * confinementBoost * densityFactor);
+  
+  return probability;
+}
+
+/**
+ * Creates particles with physics appropriate for the selected mode
+ * - 'tokamak': Realistic plasma physics with magnetic confinement
+ * - 'orbital': Keplerian orbital visualization (artistic/educational)
+ */
+function createInitialParticles(count: number, reactionMode: ReactionMode, physicsMode: PhysicsMode): Particle[] {
   const particles: Particle[] = [];
+  
   for (let i = 0; i < count; i++) {
-    particles.push({
-      id: i,
-      x: 200 + Math.random() * 400,
-      y: 150 + Math.random() * 300,
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
-      type: mode === 'DD_DHe3' ? 'D' : (Math.random() > 0.5 ? 'D' : 'T'),
-    });
+    const type = reactionMode === 'DD_DHe3' ? 'D' : (Math.random() > 0.5 ? 'D' : 'T');
+    
+    if (physicsMode === 'orbital') {
+      // ORBITAL MODE: Keplerian planetary orbits
+      const orbitLayer = i % ORBIT_LAYERS;
+      const baseRadius = (0.15 + 0.1 * Math.pow(1.5, orbitLayer)) * MAX_ORBIT_RADIUS;
+      const orbitRadius = baseRadius + (Math.random() - 0.5) * 15;
+      const baseSpeed = 0.02 / Math.pow(orbitRadius / 100, 0.5);
+      const orbitSpeed = baseSpeed * (0.8 + Math.random() * 0.4);
+      const orbitAngle = Math.random() * Math.PI * 2;
+      const orbitEccentricity = 0.1 + Math.random() * 0.25;
+      const orbitPhase = Math.random() * Math.PI * 2;
+      
+      const r = orbitRadius * (1 - orbitEccentricity * Math.cos(orbitAngle));
+      const x = CENTER_X + r * Math.cos(orbitAngle);
+      const y = CENTER_Y + r * Math.sin(orbitAngle);
+      const tangentAngle = orbitAngle + Math.PI / 2;
+      const speed = orbitSpeed * orbitRadius;
+      
+      particles.push({
+        id: i, x, y,
+        vx: Math.cos(tangentAngle) * speed * 0.1,
+        vy: Math.sin(tangentAngle) * speed * 0.1,
+        type, orbitRadius, orbitAngle, orbitSpeed, orbitEccentricity, orbitPhase,
+      });
+    } else {
+      // TOKAMAK MODE: Realistic plasma physics
+      // Particles distributed in toroidal region with thermal velocities
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 80 + Math.random() * 150; // Plasma region
+      const x = CENTER_X + radius * Math.cos(angle);
+      const y = CENTER_Y + radius * Math.sin(angle) * 0.7; // Toroidal compression
+      
+      // Maxwell-Boltzmann velocity distribution (simplified)
+      const thermalSpeed = 3 + Math.random() * 3;
+      const vAngle = Math.random() * Math.PI * 2;
+      
+      particles.push({
+        id: i, x, y,
+        vx: Math.cos(vAngle) * thermalSpeed,
+        vy: Math.sin(vAngle) * thermalSpeed,
+        type,
+      });
+    }
   }
   return particles;
 }
@@ -57,6 +239,7 @@ export function FusionReactorDashboard() {
     energyThreshold: ENERGY_THRESHOLD,
     initialParticleCount: INITIAL_PARTICLE_COUNT,
     reactionMode: 'DT' as ReactionMode,
+    physicsMode: 'tokamak' as PhysicsMode, // Default to realistic physics
   });
   
   const [telemetry, setTelemetry] = useState({
@@ -105,7 +288,7 @@ export function FusionReactorDashboard() {
   const { data: topRuns, isLoading: isLeaderboardLoading } = useCollection<SimulationRun>(leaderboardQuery);
 
   const simulationStateRef = useRef({
-    particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode),
+    particles: createInitialParticles(settings.initialParticleCount, settings.reactionMode, settings.physicsMode),
     flashes: [] as FusionFlash[],
     nextParticleId: settings.initialParticleCount,
     nextFlashId: 0,
@@ -166,7 +349,7 @@ export function FusionReactorDashboard() {
     setSettings(newSettings);
 
     simulationStateRef.current = {
-        particles: createInitialParticles(newSettings.initialParticleCount, reactionMode),
+        particles: createInitialParticles(newSettings.initialParticleCount, reactionMode, newSettings.physicsMode),
         flashes: [],
         nextParticleId: newSettings.initialParticleCount,
         nextFlashId: 0,
@@ -232,6 +415,12 @@ export function FusionReactorDashboard() {
     resetSimulation(mode);
   }, [resetSimulation]);
 
+  const handlePhysicsModeChange = useCallback((mode: PhysicsMode) => {
+    setSettings(s => ({...s, physicsMode: mode}));
+    // Reset simulation to apply new physics
+    setTimeout(() => resetSimulation(), 0);
+  }, [resetSimulation]);
+
   useEffect(() => {
     let animationFrameId: number;
     
@@ -242,40 +431,104 @@ export function FusionReactorDashboard() {
       }
 
       const { particles: currentParticles, flashes: currentFlashes } = simulationStateRef.current;
-      const { confinement, energyThreshold, reactionMode, temperature } = settings;
+      const { confinement, energyThreshold, reactionMode, temperature, physicsMode } = settings;
 
-      const effectiveConfinement = Math.max(0, confinement - confinementPenalty);
+      const effectiveConfinement = Math.max(0.1, confinement - confinementPenalty);
       let wallDamage = 0;
 
+      // === PHYSICS UPDATE (mode-dependent) ===
       for (const p of currentParticles) {
-        const dx = (SIMULATION_WIDTH / 2) - p.x;
-        const dy = (SIMULATION_HEIGHT / 2) - p.y;
-        const distance = Math.hypot(dx, dy);
+        if (physicsMode === 'orbital' && p.orbitRadius !== undefined) {
+          // ========== ORBITAL MODE: Keplerian Physics ==========
+          const thermalPerturbation = (temperature / 100) * 0.002;
+          const orbitStability = effectiveConfinement;
+          
+          const currentRadius = p.orbitRadius * (1 - (p.orbitEccentricity || 0) * Math.cos(p.orbitAngle || 0));
+          const keplerSpeedFactor = Math.pow(p.orbitRadius / currentRadius, 1.5);
+          
+          p.orbitAngle = (p.orbitAngle || 0) + (p.orbitSpeed || 0.01) * keplerSpeedFactor * (0.5 + orbitStability);
+          p.orbitAngle += (Math.random() - 0.5) * thermalPerturbation;
+          
+          const targetEccentricity = 0.1 + (temperature / 200) * 0.3;
+          p.orbitEccentricity = (p.orbitEccentricity || 0) + (targetEccentricity - (p.orbitEccentricity || 0)) * 0.001;
+          
+          const r = p.orbitRadius * (1 - (p.orbitEccentricity || 0) * Math.cos(p.orbitAngle || 0));
+          const newX = CENTER_X + r * Math.cos((p.orbitAngle || 0) + (p.orbitPhase || 0));
+          const newY = CENTER_Y + r * Math.sin((p.orbitAngle || 0) + (p.orbitPhase || 0));
+          
+          p.vx = (newX - p.x);
+          p.vy = (newY - p.y);
+          p.x = newX;
+          p.y = newY;
+
+          if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) {
+              p.orbitPhase = Math.PI - (p.orbitPhase || 0);
+              p.orbitRadius *= 0.95;
+              wallDamage += 0.05;
+          }
+          if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) {
+              p.orbitPhase = -(p.orbitPhase || 0);
+              p.orbitRadius *= 0.95;
+              wallDamage += 0.05;
+          }
+        } else {
+          // ========== TOKAMAK MODE: Realistic Plasma Physics ==========
+          // Magnetic confinement force (towards center)
+          const dx = CENTER_X - p.x;
+          const dy = CENTER_Y - p.y;
+          const distance = Math.hypot(dx, dy);
+          
+          // Lorentz force simulation (magnetic confinement)
+          // F = q(v × B) - particles spiral towards center
+          if (distance > 1) {
+            const magneticForce = effectiveConfinement * 0.8;
+            p.vx += (dx / distance) * magneticForce;
+            p.vy += (dy / distance) * magneticForce;
+            
+            // Add rotational component (gyration around field lines)
+            const gyroForce = effectiveConfinement * 0.3;
+            p.vx += (dy / distance) * gyroForce;
+            p.vy -= (dx / distance) * gyroForce;
+          }
+          
+          // Thermal motion (Maxwell-Boltzmann) - increased force
+          const thermalForce = (temperature / 100) * 0.4;
+          p.vx += (Math.random() - 0.5) * thermalForce;
+          p.vy += (Math.random() - 0.5) * thermalForce;
+          
+          // Velocity damping (collision/viscosity)
+          const damping = 0.992;
+          p.vx *= damping;
+          p.vy *= damping;
+          
+          // Update position
+          p.x += p.vx;
+          p.y += p.vy;
+
+          // Wall collision (neutron damage to first wall)
+          if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) {
+              p.vx *= -0.8; // Energy loss on reflection
+              wallDamage += 0.05;
+          }
+          if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) {
+              p.vy *= -0.8;
+              wallDamage += 0.05;
+          }
+        }
         
-        const tempForce = (temperature / 100) * 0.1;
-
-        if (distance > 1) {
-            p.vx += (dx / distance) * (effectiveConfinement * 0.5) + (Math.random() - 0.5) * tempForce;
-            p.vy += (dy / distance) * (effectiveConfinement * 0.5) + (Math.random() - 0.5) * tempForce;
-        }
-
-        p.x += p.vx;
-        p.y += p.vy;
-
-        if (p.x <= PARTICLE_RADIUS || p.x >= SIMULATION_WIDTH - PARTICLE_RADIUS) {
-            p.vx *= -1;
-            wallDamage += 0.05;
-        }
-        if (p.y <= PARTICLE_RADIUS || p.y >= SIMULATION_HEIGHT - PARTICLE_RADIUS) {
-            p.vy *= -1;
-            wallDamage += 0.05;
-        }
+        // Clamp position to bounds (both modes)
+        p.x = Math.max(PARTICLE_RADIUS, Math.min(SIMULATION_WIDTH - PARTICLE_RADIUS, p.x));
+        p.y = Math.max(PARTICLE_RADIUS, Math.min(SIMULATION_HEIGHT - PARTICLE_RADIUS, p.y));
       }
       
       const newParticlesList: Particle[] = [];
       const fusedIndices = new Set<number>();
-      let newEnergy = 0;
+      let frameEnergy = 0;
+      let fusionsThisFrame = 0;
     
+      // ============================================================
+      // DETECÇÃO DE COLISÃO E FUSÃO NUCLEAR
+      // ============================================================
       for (let i = 0; i < currentParticles.length; i++) {
         if (fusedIndices.has(i)) continue;
         let hasFusedWithAnother = false;
@@ -287,36 +540,141 @@ export function FusionReactorDashboard() {
           const p2 = currentParticles[j];
           const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
     
-          if (dist < PARTICLE_RADIUS * 2) {
-            const collisionEnergy = Math.hypot(p1.vx - p2.vx, p1.vy - p2.vy);
-            if (collisionEnergy > energyThreshold) {
-              
-              let reactionType: 'none' | 'DT' | 'DD' | 'DHe3' = 'none';
+          // Colisão detectada quando partículas se aproximam
+          if (dist < PARTICLE_RADIUS * 2.5) {
+            
+            // === 1. CALCULAR ENERGIA DE COLISÃO (keV) ===
+            const collisionEnergyKeV = calculateCollisionEnergy(p1, p2, temperature);
+            
+            // === 2. DETERMINAR TIPO DE REAÇÃO POSSÍVEL ===
+            let reactionType: 'none' | 'DT' | 'DD' | 'DHe3' = 'none';
 
-              if (reactionMode === 'DT' && p1.type !== p2.type) {
+            if (reactionMode === 'DT') {
+              // D-T: Deutério + Trítio → He4 + nêutron + 17.6 MeV
+              if ((p1.type === 'D' && p2.type === 'T') || (p1.type === 'T' && p2.type === 'D')) {
                 reactionType = 'DT';
-                newEnergy = DT_FUSION_ENERGY_MEV;
-              } else if (reactionMode === 'DD_DHe3') {
-                if (p1.type === 'D' && p2.type === 'D') reactionType = 'DD';
-                else if (p1.type === 'He3' || p2.type === 'He3') {
-                  if (p1.type !== p2.type) {
-                    reactionType = 'DHe3';
-                    newEnergy = DHE3_FUSION_ENERGY_MEV;
-                  }
-                }
               }
+            } else if (reactionMode === 'DD_DHe3') {
+              if (p1.type === 'D' && p2.type === 'D') {
+                // D-D: Deutério + Deutério → He3 + nêutron + 3.27 MeV
+                reactionType = 'DD';
+              } else if ((p1.type === 'D' && p2.type === 'He3') || (p1.type === 'He3' && p2.type === 'D')) {
+                // D-He3: Deutério + Hélio-3 → He4 + próton + 18.4 MeV
+                reactionType = 'DHe3';
+              }
+            }
 
-              if (reactionType !== 'none') {
+            if (reactionType !== 'none') {
+              // === 3. CALCULAR SEÇÃO CRUZADA DE FUSÃO σ(E) ===
+              const crossSection = calculateFusionCrossSection(collisionEnergyKeV, reactionType);
+              
+              // === 4. CALCULAR PROBABILIDADE DE FUSÃO ===
+              const fusionProbability = calculateFusionProbability(
+                crossSection, 
+                effectiveConfinement,
+                currentParticles.length
+              );
+              
+              // === 5. ROLAR DADO PARA FUSÃO (Monte Carlo) ===
+              const roll = Math.random();
+              
+              if (roll < fusionProbability) {
+                // FUSÃO OCORREU!
                 hasFusedWithAnother = true;
                 fusedIndices.add(j);
+                fusionsThisFrame++;
                 
-                if (reactionType === 'DD') {
-                  newParticlesList.push({ id: simulationStateRef.current.nextParticleId++, x: p1.x, y: p1.y, vx: p1.vx * 0.5, vy: p1.vy * 0.5, type: 'He3' });
-                } else if (newEnergy > 0) {
-                  simulationStateRef.current.fusionsInLastSecond++;
-                  currentFlashes.push({ id: simulationStateRef.current.nextFlashId++, x: p1.x, y: p1.y, radius: 2, opacity: 1 });
+                // Energia liberada depende da reação
+                let energyReleased = 0;
+                
+                if (reactionType === 'DT') {
+                  // D + T → He4 (3.5 MeV) + n (14.1 MeV) = 17.6 MeV total
+                  energyReleased = DT_FUSION_ENERGY_MEV;
+                  // Flash de fusão (mais intenso para D-T)
+                  currentFlashes.push({ 
+                    id: simulationStateRef.current.nextFlashId++, 
+                    x: (p1.x + p2.x) / 2, 
+                    y: (p1.y + p2.y) / 2, 
+                    radius: 3, 
+                    opacity: 1 
+                  });
+                  
+                } else if (reactionType === 'DD') {
+                  // D + D → He3 (0.82 MeV) + n (2.45 MeV) = 3.27 MeV
+                  // OU D + D → T (1.01 MeV) + p (3.02 MeV) = 4.03 MeV
+                  // Usamos a média e criamos He3
+                  energyReleased = DD_FUSION_ENERGY_MEV;
+                  
+                  // Criar partícula He3 (produto da reação)
+                  const newX = (p1.x + p2.x) / 2;
+                  const newY = (p1.y + p2.y) / 2;
+                  const newOrbitRadius = p1.orbitRadius && p2.orbitRadius 
+                    ? ((p1.orbitRadius + p2.orbitRadius) / 2) * 0.9 
+                    : undefined;
+                    
+                  newParticlesList.push({ 
+                    id: simulationStateRef.current.nextParticleId++, 
+                    x: newX, 
+                    y: newY, 
+                    // He3 carrega parte do momento
+                    vx: (p1.vx + p2.vx) * 0.4,
+                    vy: (p1.vy + p2.vy) * 0.4,
+                    type: 'He3',
+                    orbitRadius: newOrbitRadius,
+                    orbitAngle: p1.orbitAngle,
+                    orbitSpeed: newOrbitRadius ? 0.02 / Math.pow(newOrbitRadius / 100, 0.5) : undefined,
+                    orbitEccentricity: p1.orbitEccentricity && p2.orbitEccentricity 
+                      ? (p1.orbitEccentricity + p2.orbitEccentricity) / 2 
+                      : undefined,
+                    orbitPhase: p1.orbitPhase && p2.orbitPhase 
+                      ? (p1.orbitPhase + p2.orbitPhase) / 2 
+                      : undefined,
+                  });
+                  
+                  // Flash menor para D-D
+                  currentFlashes.push({ 
+                    id: simulationStateRef.current.nextFlashId++, 
+                    x: newX, 
+                    y: newY, 
+                    radius: 2, 
+                    opacity: 0.8 
+                  });
+                  
+                } else if (reactionType === 'DHe3') {
+                  // D + He3 → He4 (3.6 MeV) + p (14.7 MeV) = 18.3 MeV
+                  // Reação aneutrônica (sem nêutrons) - ideal para energia limpa
+                  energyReleased = DHE3_FUSION_ENERGY_MEV;
+                  
+                  // Flash dourado para D-He3 (reação premium)
+                  currentFlashes.push({ 
+                    id: simulationStateRef.current.nextFlashId++, 
+                    x: (p1.x + p2.x) / 2, 
+                    y: (p1.y + p2.y) / 2, 
+                    radius: 4, 
+                    opacity: 1 
+                  });
                 }
+                
+                frameEnergy += energyReleased;
+                simulationStateRef.current.fusionsInLastSecond++;
                 break;
+              }
+            }
+            
+            // Se não fundiu, aplicar colisão elástica (bounce)
+            if (!hasFusedWithAnother && dist < PARTICLE_RADIUS * 2) {
+              // Colisão elástica simples
+              const nx = (p2.x - p1.x) / dist;
+              const ny = (p2.y - p1.y) / dist;
+              const dvx = p1.vx - p2.vx;
+              const dvy = p1.vy - p2.vy;
+              const dvn = dvx * nx + dvy * ny;
+              
+              if (dvn > 0) {
+                p1.vx -= dvn * nx * 0.5;
+                p1.vy -= dvn * ny * 0.5;
+                p2.vx += dvn * nx * 0.5;
+                p2.vy += dvn * ny * 0.5;
               }
             }
           }
@@ -342,7 +700,7 @@ export function FusionReactorDashboard() {
         return f.opacity > 0;
       });
       
-      totalEnergyGeneratedRef.current += newEnergy;
+      totalEnergyGeneratedRef.current += frameEnergy;
       animationFrameId = requestAnimationFrame(gameLoop);
     };
 
@@ -498,6 +856,7 @@ export function FusionReactorDashboard() {
                     onEnergyThresholdChange={handleEnergyThresholdChange}
                     onInitialParticleCountChange={handleInitialParticleCountChange}
                     onReactionModeChange={handleReactionModeChange}
+                    onPhysicsModeChange={handlePhysicsModeChange}
                     onReset={() => resetSimulation()}
                     isSimulating={isSimulating}
                     onStartIgnition={handleStartIgnition}

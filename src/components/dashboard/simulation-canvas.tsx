@@ -13,6 +13,7 @@ import {
   R_MAJOR,
   R_MINOR,
 } from "@/lib/simulation-constants";
+import type { PhysicsMode } from "@/lib/simulation-types";
 
 interface SimulationCanvasProps {
   getParticles: () => Particle[];
@@ -20,6 +21,7 @@ interface SimulationCanvasProps {
   settings: {
     temperature: number;
     confinement: number;
+    physicsMode: PhysicsMode;
   };
   qFactor: number;
   magneticSafetyFactorQ: number;
@@ -112,35 +114,102 @@ export function SimulationCanvas({
       context.ellipse(centerX, centerY, R_MAJOR * 65 * minScale, R_MAJOR * 45 * minScale, 0, 0, Math.PI * 2);
       context.stroke();
 
-      // --- 3. PARTÍCULAS (PLASMA) ---
+      // --- 2.5. ORBITAL LANES (only in orbital mode) ---
+      if (settings.physicsMode === 'orbital') {
+        // Draw faint orbital paths like planetary orbits
+        const orbitLayers = 8;
+        const maxOrbitRadius = Math.min(SIMULATION_WIDTH, SIMULATION_HEIGHT) * 0.42;
+        
+        for (let i = 0; i < orbitLayers; i++) {
+          const baseRadius = (0.15 + 0.1 * Math.pow(1.5, i)) * maxOrbitRadius;
+          const opacity = 0.03 + (i % 2) * 0.02;
+          
+          context.strokeStyle = `rgba(100, 180, 255, ${opacity})`;
+          context.lineWidth = 1 * minScale;
+          context.setLineDash([4, 8]);
+          context.beginPath();
+          context.ellipse(
+            centerX, 
+            centerY, 
+            baseRadius * scaleX, 
+            baseRadius * scaleY * 0.85,
+            0, 0, Math.PI * 2
+        );
+        context.stroke();
+        context.setLineDash([]); // Reset dash
+        }
+        
+        // Central "sun" glow (fusion core - orbital mode)
+        const sunGradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 30 * minScale);
+        sunGradient.addColorStop(0, `rgba(255, 200, 100, ${0.3 + qFactor * 0.1})`);
+        sunGradient.addColorStop(0.5, `rgba(255, 150, 50, ${0.15 + qFactor * 0.05})`);
+        sunGradient.addColorStop(1, "transparent");
+        context.fillStyle = sunGradient;
+        context.beginPath();
+        context.arc(centerX, centerY, 30 * minScale, 0, Math.PI * 2);
+        context.fill();
+      } else {
+        // Tokamak mode - show magnetic core glow
+        const coreGradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 20 * minScale);
+        coreGradient.addColorStop(0, `rgba(100, 150, 255, ${0.2 + qFactor * 0.1})`);
+        coreGradient.addColorStop(0.7, `rgba(50, 100, 200, ${0.1})`);
+        coreGradient.addColorStop(1, "transparent");
+        context.fillStyle = coreGradient;
+        context.beginPath();
+        context.arc(centerX, centerY, 20 * minScale, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      // --- 3. PARTÍCULAS (PLASMA) - Planetary Style ---
       particles.forEach((p) => {
         let color = DEUTERIUM_COLOR;
-        if (p.type === 'T') color = TRITIUM_COLOR;
-        if (p.type === 'He3') color = HELIUM3_COLOR;
+        let glowColor = 'rgba(0, 200, 255, 0.3)';
+        if (p.type === 'T') {
+          color = TRITIUM_COLOR;
+          glowColor = 'rgba(255, 100, 0, 0.3)';
+        }
+        if (p.type === 'He3') {
+          color = HELIUM3_COLOR;
+          glowColor = 'rgba(168, 85, 247, 0.4)';
+        }
         
         const px = p.x * scaleX;
         const py = p.y * scaleY;
+        const particleSize = PARTICLE_RADIUS * minScale;
 
-        const trailLen = (settings.temperature / 100) * 5;
+        // Orbital trail (shows recent path)
+        const trailLen = (settings.temperature / 100) * 8;
         const gradient = context.createLinearGradient(px, py, px - p.vx * trailLen, py - p.vy * trailLen);
         gradient.addColorStop(0, color);
         gradient.addColorStop(1, "transparent");
         
         context.strokeStyle = gradient;
-        context.lineWidth = PARTICLE_RADIUS * minScale;
+        context.lineWidth = particleSize * 0.8;
+        context.lineCap = "round";
         context.beginPath();
         context.moveTo(px, py);
         context.lineTo(px - p.vx * trailLen, py - p.vy * trailLen);
         context.stroke();
 
-        context.fillStyle = "white";
+        // Particle glow (planetary atmosphere effect)
+        const particleGlow = context.createRadialGradient(px, py, 0, px, py, particleSize * 2.5);
+        particleGlow.addColorStop(0, glowColor);
+        particleGlow.addColorStop(1, "transparent");
+        context.fillStyle = particleGlow;
         context.beginPath();
-        context.arc(px, py, (PARTICLE_RADIUS * 0.6) * minScale, 0, 2 * Math.PI);
+        context.arc(px, py, particleSize * 2.5, 0, 2 * Math.PI);
         context.fill();
-        
+
+        // Main particle body
         context.fillStyle = color;
         context.beginPath();
-        context.arc(px, py, PARTICLE_RADIUS * minScale, 0, 2 * Math.PI);
+        context.arc(px, py, particleSize, 0, 2 * Math.PI);
+        context.fill();
+        
+        // Highlight (3D sphere effect)
+        context.fillStyle = "rgba(255, 255, 255, 0.6)";
+        context.beginPath();
+        context.arc(px - particleSize * 0.3, py - particleSize * 0.3, particleSize * 0.35, 0, 2 * Math.PI);
         context.fill();
       });
 

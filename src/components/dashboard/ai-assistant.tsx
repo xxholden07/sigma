@@ -53,7 +53,12 @@ export function AIAssistant({
     if (checked) {
       setActionLog([]); // Clear log when starting
       setCycleCount(0);
-      onStartIgnition(true); // Force reset when autopilot is engaged
+      // Start simulation immediately
+      onStartIgnition(true);
+      // Run first analysis after a short delay to let simulation start
+      setTimeout(() => {
+        performAnalysis();
+      }, 500);
     }
   };
 
@@ -117,7 +122,7 @@ export function AIAssistant({
           }
         } else if (action.decision === "restart_simulation") {
           console.log(`[Prometheus] Reiniciando simulação`);
-          onReset();
+          // Only call onStartIgnition(true) which handles reset internally
           onStartIgnition(true);
         } else {
           console.log(`[Prometheus] Mantendo parâmetros atuais`);
@@ -131,8 +136,14 @@ export function AIAssistant({
   }, [telemetryHistory, settings, currentReward, topRuns, autopilot, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition]);
 
   useEffect(() => {
-    if (autopilot && isSimulating) {
-      const analysisInterval = setInterval(performAnalysis, 3000);
+    if (autopilot) {
+      // Run analysis periodically when autopilot is on
+      const analysisInterval = setInterval(() => {
+        // Only analyze if simulation is running
+        if (isSimulating) {
+          performAnalysis();
+        }
+      }, 3000);
       return () => clearInterval(analysisInterval);
     }
   }, [autopilot, isSimulating, performAnalysis]);

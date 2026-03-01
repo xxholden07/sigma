@@ -3,12 +3,16 @@ export type ParticleType = 'D' | 'T' | 'He3';
 
 export type ReactionMode = 'DT' | 'DD_DHe3';
 
+// Physics mode for simulation
+export type PhysicsMode = 'tokamak' | 'orbital';
+
 export interface SimulationSettings {
   reactionMode: ReactionMode;
   temperature: number;
   confinement: number;
   energyThreshold: number;
   initialParticleCount: number;
+  physicsMode: PhysicsMode; // 'tokamak' = realistic plasma physics, 'orbital' = Keplerian visualization
 }
 
 export interface Particle {
@@ -18,6 +22,12 @@ export interface Particle {
   vx: number;
   vy: number;
   type: ParticleType;
+  // Orbital parameters (only used in 'orbital' mode)
+  orbitRadius?: number;      // Semi-major axis
+  orbitAngle?: number;       // Current angle in orbit (radians)
+  orbitSpeed?: number;       // Angular velocity
+  orbitEccentricity?: number; // 0 = circle, 0.5 = ellipse
+  orbitPhase?: number;       // Phase offset
 }
 
 export interface FusionFlash {
