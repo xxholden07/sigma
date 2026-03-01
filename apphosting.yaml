@@ -22,3 +22,5 @@ env:
     value: "G-SFTY68QXZ0"
   - variable: NODE_ENV
     value: "production"
+  - variable: GOOGLE_GENAI_API_KEY
+    value: "AIzaSyCQswTlXq4P_a42JhJHmc-yJzcUHXD66lI"
