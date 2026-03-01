@@ -15,5 +15,4 @@ firebase-debug.log
 .env*.local
 
 # Other
-apphosting.yaml
 *.log

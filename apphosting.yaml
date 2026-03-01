@@ -23,4 +23,4 @@ env:
   - variable: NODE_ENV
     value: "production"
   - variable: GOOGLE_GENAI_API_KEY
-    value: "AIzaSyCQswTlXq4P_a42JhJHmc-yJzcUHXD66lI"
+    secret: reator
