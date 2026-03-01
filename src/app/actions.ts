@@ -13,6 +13,10 @@ export async function generateReactorAnalysis(promptData: {
   currentReward: number;
   topRuns: any[];
 }) {
+  // Log API key status (without revealing the key)
+  const apiKey = process.env.GOOGLE_GENAI_API_KEY;
+  console.log('[Prometheus Server] API Key status:', apiKey ? `Set (${apiKey.slice(0, 10)}...)` : 'NOT SET');
+  
   try {
     const response = await ai.generate({
       model: 'googleai/gemini-1.5-flash',
@@ -157,9 +161,15 @@ Considere:
       analysis,
       usage,
     };
-  } catch (error) {
-    console.error("Error in generateReactorAnalysis:", error);
-    // It's important to return a structured error or null
-    return { error: 'Failed to get analysis from AI.' };
+  } catch (error: any) {
+    console.error("❌ Error in generateReactorAnalysis:", {
+      message: error?.message || 'Unknown error',
+      code: error?.code,
+      status: error?.status,
+      details: error?.details,
+      stack: error?.stack?.slice(0, 500),
+    });
+    // Return the actual error message for debugging
+    return { error: `Failed to get analysis from AI: ${error?.message || 'Unknown error'}` };
   }
 }
