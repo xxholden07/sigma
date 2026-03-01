@@ -10,7 +10,9 @@
 firebase-debug.log
 
 # Local environment variables
+.env
 .env.local
+.env*.local
 
 # Other
 apphosting.yaml
