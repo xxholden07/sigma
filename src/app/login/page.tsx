@@ -28,6 +28,8 @@ export default function LoginPage() {
     setIsLoadingGoogle(true);
     try {
       initiateGoogleSignIn(auth);
+      // O loading será resetado quando o onAuthStateChanged detectar o usuário
+      // ou se o popup for fechado sem login
     } catch (error) {
       console.error('[LoginPage] Erro no login Google:', error);
       setIsLoadingGoogle(false);
@@ -39,11 +41,20 @@ export default function LoginPage() {
     setIsLoadingGuest(true);
     try {
       initiateAnonymousSignIn(auth);
+      // O loading será resetado quando o onAuthStateChanged detectar o usuário
     } catch (error) {
       console.error('[LoginPage] Erro no login anônimo:', error);
       setIsLoadingGuest(false);
     }
   };
+
+  // Reset loading states when auth state changes
+  useEffect(() => {
+    if (!isUserLoading) {
+      setIsLoadingGoogle(false);
+      setIsLoadingGuest(false);
+    }
+  }, [isUserLoading, user]);
 
   console.log('[LoginPage] Render - isUserLoading:', isUserLoading, 'user:', user?.email || null);
 
