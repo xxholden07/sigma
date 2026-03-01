@@ -90,7 +90,7 @@ export function AIAssistant({
 
   useEffect(() => {
     if (autopilot && isSimulating) {
-      const analysisInterval = setInterval(performAnalysis, 10000);
+      const analysisInterval = setInterval(performAnalysis, 3000);
       return () => clearInterval(analysisInterval);
     }
   }, [autopilot, isSimulating, performAnalysis]);
@@ -110,7 +110,7 @@ export function AIAssistant({
                 {isThinking ? (
                     <span className="flex items-center justify-center gap-2"><Sparkles className="h-3 w-3 animate-spin" />Analisando telemetria...</span>
                 ) : (
-                    "IA ativa. Analisando a cada 10s."
+                    "IA ativa. Analisando a cada 3s."
                 )}
             </div>
         ) : (

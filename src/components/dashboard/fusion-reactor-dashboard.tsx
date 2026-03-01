@@ -22,7 +22,7 @@ import { TelemetryPanel } from "./telemetry-panel";
 import { AIAssistant } from "./ai-assistant";
 import { LeaderboardPanel } from "./leaderboard-panel";
 import { FusionIcon } from "../icons/fusion-icon";
-import { useFirebase, useUser, initiateAnonymousSignIn, addDocumentNonBlocking, useCollection, useMemoFirebase } from "@/firebase";
+import { useFirebase, useUser, addDocumentNonBlocking, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, collectionGroup, query, orderBy, limit } from "firebase/firestore";
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,7 @@ function createInitialParticles(count: number, mode: ReactionMode): Particle[] {
 }
 
 export function FusionReactorDashboard() {
-  const { firestore, auth } = useFirebase();
+  const { firestore } = useFirebase();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
@@ -117,11 +117,7 @@ export function FusionReactorDashboard() {
   const simulationTimeStartRef = useRef(performance.now());
   const lastFusionRateUpdateTime = useRef(performance.now());
 
-  useEffect(() => {
-    if (auth && !isUserLoading && !user) {
-      initiateAnonymousSignIn(auth);
-    }
-  }, [isUserLoading, user, auth]);
+  // Removido: login anônimo automático - agora o login é feito na página /login
 
   const handleSaveSimulation = useCallback(() => {
     if (!user || !firestore || totalEnergyGeneratedRef.current === 0) return;
