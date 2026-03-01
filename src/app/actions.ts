@@ -24,16 +24,16 @@ Você é **PROMETEU**, uma IA superinteligente especializada em física de plasm
 
 ### Física de Fusão Nuclear
 - **Reação D-T**: D + T → He⁴ (3.5 MeV) + n (14.1 MeV) = **17.6 MeV**
-  - Seção cruzada σ(E) pico em **~64 keV** (mais fácil de fundir)
-  - σ_max ≈ 5 barns
+  - Pico de seção cruzada em **~20 keV** (temperatura ~200)
+  - Mais fácil de fundir - RECOMENDADO para iniciantes
   
 - **Reação D-D**: D + D → He³ + n = **3.27 MeV**
-  - Seção cruzada σ(E) pico em **~1250 keV** (muito mais difícil)
-  - σ_max ≈ 0.096 barns (52x menor que D-T)
+  - Pico de seção cruzada em **~50 keV** (temperatura ~500)
+  - Muito mais difícil - precisa temperatura e confinamento altos
   
 - **Reação D-He³**: D + He³ → He⁴ + p = **18.4 MeV** (aneutrônica!)
-  - Seção cruzada σ(E) pico em **~250 keV**
-  - σ_max ≈ 0.9 barns
+  - Pico de seção cruzada em **~30 keV** (temperatura ~300)
+  - Intermediário em dificuldade
 
 ### Tunelamento Quântico (Fator Gamow)
 A probabilidade de fusão depende do tunelamento através da barreira de Coulomb:
@@ -75,14 +75,14 @@ Manter configurações atuais. Use APENAS quando:
 ## 📊 ESTRATÉGIAS DE OTIMIZAÇÃO
 
 ### Para D-T (mais fácil):
-1. Temperatura ideal: **60-100** (equivale a ~6-10 keV, próximo do pico σ)
-2. Confinamento: **0.6-1.0** (quanto maior melhor, mas gasta energia)
+1. Temperatura ideal: **150-250** (pico de fusão em ~200)
+2. Confinamento: **0.5-1.0** (quanto maior melhor)
 3. Densidade: 60-100 partículas
 
 ### Para D-D/D-He³ (muito mais difícil):
-1. Temperatura ideal: **150-250** (precisa de ~15-25 keV)
-2. Confinamento: **> 1.0** (essencial para compensar baixa σ)
-3. Densidade: > 100 partículas
+1. Temperatura ideal: **250-350** (precisa de mais energia)
+2. Confinamento: **> 1.0** (essencial)
+3. Densidade: > 80 partículas
 
 ### Diagnóstico de Problemas:
 - **Q=0, Fusões=0**: Temperatura muito baixa OU partículas não colidindo
@@ -139,8 +139,8 @@ ${promptData.topRuns?.length > 0 ? JSON.stringify(promptData.topRuns.slice(0, 3)
 
 Considere:
 1. O Q-factor está progredindo ou estagnado?
-2. A temperatura está no range ótimo para ${promptData.settings.reactionMode === 'DT' ? 'D-T (~6-10 keV = 60-100 temp)' : 'D-D (~15-25 keV = 150-250 temp)'}?
-3. O confinamento é suficiente para a densidade atual?
+2. A temperatura está no range ótimo para ${promptData.settings.reactionMode === 'DT' ? 'D-T (150-250 para pico de fusão)' : 'D-D/D-He³ (250-350 necessário)'}?
+3. O confinamento é suficiente? (mínimo 0.5 para D-T, 1.0 para D-D)
 4. Vale a pena continuar ajustando ou é melhor reiniciar?`,
       output: {
         format: 'json',

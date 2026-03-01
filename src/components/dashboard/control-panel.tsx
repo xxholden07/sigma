@@ -137,7 +137,7 @@ export function ControlPanel({
             onValueChange={(value) => onTemperatureChange(value[0])}
           />
           <p className="text-[8px] text-muted-foreground">
-            Pico D-T: ~64 keV | Pico D-D: ~1250 keV
+            Pico D-T: ~200 | Pico D-D: ~500
           </p>
         </div>
 
@@ -158,7 +158,7 @@ export function ControlPanel({
             onValueChange={(value) => onConfinementChange(value[0])}
           />
           <p className="text-[8px] text-muted-foreground">
-            Maior B → melhor confinamento → mais fusões
+            D-T: mín 0.5T | D-D: mín 1.0T
           </p>
         </div>
 

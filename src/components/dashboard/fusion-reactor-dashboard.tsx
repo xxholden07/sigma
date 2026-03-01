@@ -8,7 +8,6 @@ import {
   INITIAL_PARTICLE_COUNT,
   INITIAL_TEMPERATURE,
   INITIAL_CONFINEMENT,
-  ENERGY_THRESHOLD,
   DT_FUSION_ENERGY_MEV,
   DHE3_FUSION_ENERGY_MEV,
   DD_FUSION_ENERGY_MEV,
@@ -16,16 +15,6 @@ import {
   SIMULATION_WIDTH,
   SIMULATION_HEIGHT,
   PHI,
-  // Física de fusão realista
-  DT_CROSS_SECTION_PEAK_KEV,
-  DT_CROSS_SECTION_MAX,
-  DD_CROSS_SECTION_PEAK_KEV,
-  DD_CROSS_SECTION_MAX,
-  DHE3_CROSS_SECTION_PEAK_KEV,
-  DHE3_CROSS_SECTION_MAX,
-  GAMOW_CONSTANT,
-  Q_BREAKEVEN,
-  Q_IGNITION,
 } from "@/lib/simulation-constants";
 import { SimulationCanvas } from "./simulation-canvas";
 import { ControlPanel } from "./control-panel";
@@ -57,8 +46,8 @@ const MAX_ORBIT_RADIUS = Math.min(SIMULATION_WIDTH, SIMULATION_HEIGHT) * 0.42;
  * E_cm = 0.5 * μ * v_rel²  (energia no centro de massa)
  * onde μ = m1*m2/(m1+m2) é a massa reduzida
  * 
- * Na simulação, convertemos velocidade → keV usando escala:
- * v² * TEMP_SCALE → keV (temperatura relativa como proxy de energia)
+ * Na simulação, a temperatura é o fator dominante.
+ * Escala: T=100 → ~10 keV médio, mas colisões podem atingir energias maiores
  */
 function calculateCollisionEnergy(
   p1: Particle, 
@@ -70,29 +59,33 @@ function calculateCollisionEnergy(
   const vRelY = p1.vy - p2.vy;
   const vRelSquared = vRelX * vRelX + vRelY * vRelY;
   
-  // Energia cinética relativa (escala arbitrária → keV)
-  // A temperatura do plasma é o fator dominante
-  // T = 100 → ~10 keV, T = 200 → ~20 keV (escala simplificada)
-  const thermalEnergy = temperature * 0.1; // keV base da temperatura
-  const kineticEnergy = vRelSquared * 0.5; // Contribuição cinética
+  // Energia térmica base (escala: T=100 → base de 10 keV)
+  const thermalBase = temperature * 0.1;
   
-  // Energia total no centro de massa (keV)
-  return thermalEnergy + kineticEnergy;
+  // Energia cinética da colisão (contribuição significativa!)
+  // Em plasmas reais, a distribuição Maxwell-Boltzmann tem caudas de alta energia
+  // Partículas rápidas (tail) são responsáveis pela maioria das fusões
+  const kineticContribution = vRelSquared * 2.0; // Fator amplificado
+  
+  // A energia total pode ser MUITO maior que a média térmica
+  // devido às caudas da distribuição (partículas "quentes")
+  const totalEnergy = thermalBase + kineticContribution;
+  
+  // Simular caudas de Maxwell-Boltzmann: algumas colisões têm energia extra
+  // Em física real, ~10% das partículas têm energia 2-3x maior que média
+  const tailBoost = Math.random() < 0.15 ? (1.5 + Math.random() * 1.5) : 1.0;
+  
+  return totalEnergy * tailBoost;
 }
 
 /**
- * Calcula a seção cruzada de fusão σ(E) usando fórmula de Gamow
+ * Calcula a seção cruzada de fusão σ(E) usando fórmula simplificada de Gamow
  * 
  * A seção cruzada de fusão termonuclear é dada por:
  * σ(E) = S(E)/E * exp(-sqrt(E_G/E))
  * 
- * onde:
- * - S(E) é o fator astrofísico S (varia lentamente com E)
- * - E_G é a energia de Gamow (barreira de Coulomb + tunelamento)
- * - E é a energia no centro de massa
- * 
- * Para D-T: E_G ≈ 986 keV
- * Para D-D: E_G ≈ 986 keV (mesma carga, mas pico diferente)
+ * Para a simulação, usamos uma versão escalada que mantém o comportamento
+ * físico mas permite fusões em tempo razoável.
  */
 function calculateFusionCrossSection(
   energyKeV: number,
@@ -100,41 +93,44 @@ function calculateFusionCrossSection(
 ): number {
   if (energyKeV <= 0) return 0;
   
-  // Parâmetros por tipo de reação
+  // Parâmetros por tipo de reação (escalados para simulação)
   let peakEnergy: number;
   let maxCrossSection: number;
   let gamowEnergy: number;
   
   switch (reactionType) {
     case 'DT':
-      peakEnergy = DT_CROSS_SECTION_PEAK_KEV;      // 64 keV
-      maxCrossSection = DT_CROSS_SECTION_MAX;      // 5.0 barns
-      gamowEnergy = 986;                            // keV
+      // D-T: pico real em 64 keV, escalamos para ~20 keV na simulação
+      peakEnergy = 20;            // keV (escalado de 64)
+      maxCrossSection = 5.0;      // barns
+      gamowEnergy = 100;          // keV (escalado de 986 para jogabilidade)
       break;
     case 'DD':
-      peakEnergy = DD_CROSS_SECTION_PEAK_KEV;      // 1250 keV
-      maxCrossSection = DD_CROSS_SECTION_MAX;      // 0.096 barns
-      gamowEnergy = 986;
+      // D-D: muito mais difícil - pico em ~50 keV na simulação
+      peakEnergy = 50;            // keV (escalado de 1250)
+      maxCrossSection = 0.5;      // barns (menos que D-T)
+      gamowEnergy = 150;          // keV
       break;
     case 'DHe3':
-      peakEnergy = DHE3_CROSS_SECTION_PEAK_KEV;    // 250 keV
-      maxCrossSection = DHE3_CROSS_SECTION_MAX;    // 0.9 barns
-      gamowEnergy = 1220;                           // keV (maior carga do He3)
+      // D-He3: intermediário - pico em ~30 keV
+      peakEnergy = 30;            // keV (escalado de 250)
+      maxCrossSection = 2.0;      // barns
+      gamowEnergy = 120;          // keV
       break;
     default:
       return 0;
   }
   
   // Fator de Gamow: exp(-sqrt(E_G/E))
-  // Representa probabilidade de tunelamento quântico através da barreira de Coulomb
+  // Representa probabilidade de tunelamento quântico
+  // Com energia escalada, isso dá valores razoáveis
   const gamowFactor = Math.exp(-Math.sqrt(gamowEnergy / energyKeV));
   
-  // Fator S(E) / E - máximo próximo ao pico
-  // Usamos uma gaussiana centrada no pico para simplificar
-  const energyRatio = energyKeV / peakEnergy;
-  const peakFactor = Math.exp(-Math.pow(Math.log(energyRatio), 2) * 2);
+  // Fator de pico: gaussiana centrada na energia ótima
+  const logRatio = Math.log(energyKeV / peakEnergy);
+  const peakFactor = Math.exp(-logRatio * logRatio);
   
-  // Seção cruzada final (barns, escala relativa)
+  // Seção cruzada final
   const crossSection = maxCrossSection * gamowFactor * peakFactor;
   
   return crossSection;
@@ -146,8 +142,7 @@ function calculateFusionCrossSection(
  * Taxa de reação: R = n1 * n2 * <σv>
  * Probabilidade por colisão: P = σ * v * dt
  * 
- * Na simulação, usamos uma simplificação:
- * P_fusion ∝ σ(E) * confinement * densityFactor
+ * Na simulação, escalamos para obter fusões visíveis em tempo real.
  */
 function calculateFusionProbability(
   crossSection: number,
@@ -156,16 +151,20 @@ function calculateFusionProbability(
 ): number {
   if (crossSection <= 0) return 0;
   
-  // Fator de densidade: mais partículas = mais colisões
-  const densityFactor = Math.min(1, particleCount / 100);
+  // Fator de densidade: mais partículas = mais colisões potenciais
+  // Normalizado para 100 partículas
+  const densityFactor = Math.pow(particleCount / 60, 0.5);
   
-  // Fator de confinamento: melhor confinamento = mais tempo para reagir
-  const confinementBoost = 0.5 + confinement * 2;
+  // Fator de confinamento: melhor campo magnético = mais tempo confinado
+  // Escala de 0.1 a 1.5 Tesla → boost de 1x a 4x
+  const confinementBoost = 1.0 + confinement * 2.5;
   
-  // Probabilidade final (0 a 1)
-  // crossSection está em barns (1 barn = 10^-24 cm²)
-  // Escalamos para obter probabilidades razoáveis na simulação
-  const probability = Math.min(0.95, crossSection * 0.1 * confinementBoost * densityFactor);
+  // Probabilidade base da seção cruzada (crossSection em barns, 0-5)
+  // Multiplicamos por 0.15 para dar ~75% chance no caso ideal
+  const baseProbability = crossSection * 0.15;
+  
+  // Probabilidade final
+  const probability = Math.min(0.85, baseProbability * confinementBoost * densityFactor);
   
   return probability;
 }

@@ -53,12 +53,50 @@ export function AIAssistant({
     if (checked) {
       setActionLog([]); // Clear log when starting
       setCycleCount(0);
-      // Start simulation immediately
-      onStartIgnition(true);
-      // Run first analysis after a short delay to let simulation start
-      setTimeout(() => {
-        performAnalysis();
-      }, 500);
+      
+      // Start simulation immediately if not running
+      if (!isSimulating) {
+        console.log('[Prometheus] Iniciando simulação...');
+        onStartIgnition(true);
+      }
+      
+      // Run first analysis after simulation has time to start
+      const runFirstAnalysis = async () => {
+        console.log('[Prometheus] Executando primeira análise...');
+        setIsThinking(true);
+        try {
+          const result = await generateReactorAnalysis({
+            telemetryHistory: telemetryHistory.slice(-10),
+            settings,
+            currentReward,
+            topRuns: topRuns ?? [],
+          });
+          
+          if (result.analysis) {
+            setAnalysis(result.analysis);
+            setCycleCount(1);
+            
+            // Apply first action
+            const action = result.analysis;
+            if (action.decision === "adjust_parameters" && action.parameters) {
+              console.log(`[Prometheus] Primeiro ajuste: T=${action.parameters.temperature}, C=${action.parameters.confinement}`);
+              onTemperatureChange(action.parameters.temperature);
+              onConfinementChange(action.parameters.confinement);
+            } else if (action.decision === "restart_simulation") {
+              console.log('[Prometheus] Reiniciando...');
+              onStartIgnition(true);
+            }
+            
+            setActionLog([{ timestamp: new Date(), action, applied: true }]);
+          }
+        } catch (err) {
+          console.error('[Prometheus] Erro na primeira análise:', err);
+        } finally {
+          setIsThinking(false);
+        }
+      };
+      
+      setTimeout(runFirstAnalysis, 1000);
     }
   };
 
@@ -136,17 +174,23 @@ export function AIAssistant({
   }, [telemetryHistory, settings, currentReward, topRuns, autopilot, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition]);
 
   useEffect(() => {
-    if (autopilot) {
-      // Run analysis periodically when autopilot is on
-      const analysisInterval = setInterval(() => {
-        // Only analyze if simulation is running
-        if (isSimulating) {
-          performAnalysis();
+    if (autopilot && isSimulating) {
+      console.log('[Prometheus] Autopilot ativo, iniciando monitoramento...');
+      
+      // Run analysis periodically when autopilot is on AND simulation is running
+      const analysisInterval = setInterval(async () => {
+        if (!isThinking) {
+          console.log('[Prometheus] Executando análise periódica...');
+          await performAnalysis();
         }
-      }, 3000);
-      return () => clearInterval(analysisInterval);
+      }, 4000); // 4 seconds between analyses
+      
+      return () => {
+        console.log('[Prometheus] Parando monitoramento...');
+        clearInterval(analysisInterval);
+      };
     }
-  }, [autopilot, isSimulating, performAnalysis]);
+  }, [autopilot, isSimulating, performAnalysis, isThinking]);
 
   return (
     <div className="space-y-4">
