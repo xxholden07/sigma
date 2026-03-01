@@ -16,18 +16,32 @@ export async function generateReactorAnalysis(promptData: {
   try {
     const response = await ai.generate({
       model: 'googleai/gemini-1.5-flash',
-      system: `You are "Prometheus", an AI agent optimizing a fusion reactor. 
+      system: `You are "Prometheus", an AI agent optimizing a fusion reactor simulation.
 
-Your ONLY valid decisions are:
-- "adjust_parameters": Change temperature and/or confinement. You MUST provide the "parameters" object with specific values.
-- "restart_simulation": Restart if the reactor is unstable or failing.
-- "no_change": Keep current settings if they're optimal.
+## YOUR DECISIONS:
+- "adjust_parameters": Change temperature/confinement. MUST include "parameters" with exact values.
+- "restart_simulation": Reset the simulation to try new parameters from scratch.
+- "no_change": Keep current settings (use sparingly, only if truly optimal).
 
-When choosing "adjust_parameters", ALWAYS provide concrete numerical values:
-- temperature: number between 50-200
-- confinement: number between 0.1-1.0
+## WHEN TO RESTART (restart_simulation):
+- Q-factor stuck at 0.00 for multiple readings
+- Fusion rate at 0 for extended period
+- Shield integrity dropping below 80%
+- Lyapunov exponent > 0.5 (chaotic instability)
+- No improvement after 3+ parameter adjustments
+- Current parameters clearly not working
 
-Goals: Maximize Q-factor (energy out / energy in), maximize fusion rate, maintain stability.`,
+## PARAMETER RANGES:
+- temperature: 50-200 (higher = more energy but less stable)
+- confinement: 0.1-1.0 (higher = better containment but harder to sustain)
+
+## STRATEGY:
+1. If Q-factor is 0 and fusion rate is 0, something is wrong - consider restart
+2. Gradually adjust parameters, don't make huge jumps
+3. Learn from top historical runs - use similar parameters
+4. Balance stability (low Lyapunov) with output (high Q-factor)
+
+Be decisive. If things aren't working, RESTART rather than endlessly tweaking.`,
       prompt: `Current reactor state:
 
 **Settings:** 
@@ -35,15 +49,32 @@ Goals: Maximize Q-factor (energy out / energy in), maximize fusion rate, maintai
 - Confinement: ${promptData.settings.confinement}
 - Reaction Mode: ${promptData.settings.reactionMode}
 
-**Recent Telemetry (last readings):**
-${JSON.stringify(promptData.telemetryHistory.slice(-5), null, 2)}
+**Key Metrics (from latest telemetry):**
+${promptData.telemetryHistory.length > 0 ? (() => {
+  const latest = promptData.telemetryHistory[promptData.telemetryHistory.length - 1];
+  return `- Q-Factor: ${latest.qFactor?.toFixed(2) ?? 'N/A'}
+- Fusion Rate: ${latest.fusionRate ?? 'N/A'} f/s
+- Shield Integrity: ${(latest.shieldIntegrity * 100)?.toFixed(1) ?? 'N/A'}%
+- Lyapunov Exponent: ${latest.lyapunovExponent?.toFixed(3) ?? 'N/A'}
+- Plasma Temperature: ${latest.plasmaTemperature?.toFixed(0) ?? 'N/A'}`;
+})() : 'No telemetry data yet'}
 
-**Current AI Reward:** ${promptData.currentReward}
+**Recent Telemetry Trend (last 5 readings):**
+${JSON.stringify(promptData.telemetryHistory.slice(-5).map(t => ({
+  qFactor: t.qFactor?.toFixed(2),
+  fusionRate: t.fusionRate,
+  shield: (t.shieldIntegrity * 100)?.toFixed(0) + '%'
+})), null, 2)}
 
-**Top Historical Runs:**
-${JSON.stringify(promptData.topRuns.slice(0, 3), null, 2)}
+**Current AI Reward Score:** ${promptData.currentReward}
 
-Analyze and decide the next action. If adjusting parameters, provide EXACT values for temperature and confinement.`,
+**Top Historical Runs (best performances):**
+${JSON.stringify(promptData.topRuns.slice(0, 3).map(r => ({
+  score: r.score,
+  settings: r.settings
+})), null, 2)}
+
+Analyze and decide the next action. If Q-factor and fusion rate are stuck at 0, consider restarting with different parameters.`,
       output: {
         format: 'json',
         schema: ReactorAgentActionSchema,

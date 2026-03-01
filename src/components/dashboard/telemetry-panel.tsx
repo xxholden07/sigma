@@ -56,21 +56,21 @@ const TelemetryItem = ({
   history?: any[],
   historyKey?: string
 }) => (
-    <div className="flex flex-col py-2 border-b border-white/5 last:border-0">
-        <div className="flex items-center justify-between mb-1">
+    <div className="flex flex-col py-2.5 px-2 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors rounded">
+        <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2">
-                <div className={colorClass}>{icon}</div>
+                <div className={`p-1 rounded ${colorClass} bg-current/10`}>{icon}</div>
                 <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
             </div>
             <div className="flex items-center gap-2">
-                {history && historyKey && <Sparkline data={history} dataKey={historyKey} color={status === 'danger' ? '#f87171' : '#60a5fa'} />}
+                {history && historyKey && <Sparkline data={history} dataKey={historyKey} color={status === 'danger' ? '#f87171' : status === 'warning' ? '#fbbf24' : '#60a5fa'} />}
                 {status && (
                     <Badge 
                         variant="outline" 
-                        className={`text-[8px] h-4 px-1 uppercase font-bold border-0 ${
-                            status === 'ok' ? 'bg-green-500/10 text-green-400' : 
-                            status === 'danger' ? 'bg-red-500/10 text-red-400 animate-pulse' : 
-                            'bg-yellow-500/10 text-yellow-400'
+                        className={`text-[8px] h-5 px-1.5 uppercase font-black border-0 ${
+                            status === 'ok' ? 'bg-green-500/20 text-green-400' : 
+                            status === 'danger' ? 'bg-red-500/20 text-red-400 animate-pulse' : 
+                            'bg-amber-500/20 text-amber-400'
                         }`}
                     >
                         {status === 'ok' ? 'OK' : status === 'danger' ? 'PERIGO' : 'ALERTA'}
@@ -78,7 +78,7 @@ const TelemetryItem = ({
                 )}
             </div>
         </div>
-        <div className="text-sm font-mono font-bold flex items-baseline gap-1">
+        <div className="text-base font-mono font-black flex items-baseline gap-1 pl-7">
             <span className="text-white">{value}</span>
             {unit && <span className="text-[9px] font-normal text-muted-foreground">{unit}</span>}
         </div>
@@ -191,8 +191,14 @@ export function TelemetryPanel({ telemetry, telemetryHistory }: TelemetryPanelPr
         />
       </div>
 
-      <Button variant="ghost" size="sm" onClick={handleExportData} className="w-full h-8 text-[9px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/10 border border-white/5">
-        <Download className="mr-2 h-3 w-3" /> EXPORTAR DATASET JAX/TORAX
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={handleExportData} 
+        className="w-full h-10 text-[10px] font-bold text-primary hover:text-white hover:bg-primary/20 border-primary/30 hover:border-primary/50 transition-all gap-2 group"
+      >
+        <Download className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" /> 
+        EXPORTAR DATASET JAX/TORAX
       </Button>
     </div>
   );

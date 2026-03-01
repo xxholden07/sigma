@@ -147,15 +147,22 @@ export function ControlPanel({
         </div>
       </div>
 
-      <div className="grid gap-2 pt-2">
+      <div className="grid gap-3 pt-4 border-t border-white/5">
         {!isSimulating ? (
-          <Button onClick={onStartIgnition} className="w-full h-11 font-bold gap-2">
-            <Play className="h-4 w-4 fill-current" />
+          <Button 
+            onClick={onStartIgnition} 
+            className="w-full h-12 font-bold gap-2 bg-gradient-to-r from-primary to-cyan-500 hover:from-primary/90 hover:to-cyan-500/90 shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 hover:scale-[1.02]"
+          >
+            <Play className="h-5 w-5 fill-current" />
             INICIAR IGNIÇÃO
           </Button>
         ) : (
-          <Button variant="outline" onClick={onReset} className="w-full h-11 font-bold gap-2">
-            <RotateCcw className="h-4 w-4" />
+          <Button 
+            variant="outline" 
+            onClick={onReset} 
+            className="w-full h-12 font-bold gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-300 transition-all"
+          >
+            <RotateCcw className="h-5 w-5" />
             ABORTAR / RESET
           </Button>
         )}
