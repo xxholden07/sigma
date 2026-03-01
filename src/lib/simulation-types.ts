@@ -3,6 +3,14 @@ export type ParticleType = 'D' | 'T' | 'He3';
 
 export type ReactionMode = 'DT' | 'DD_DHe3';
 
+export interface SimulationSettings {
+  reactionMode: ReactionMode;
+  temperature: number;
+  confinement: number;
+  energyThreshold: number;
+  initialParticleCount: number;
+}
+
 export interface Particle {
   id: number;
   x: number;

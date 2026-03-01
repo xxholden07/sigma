@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 const TelemetrySnapshotSchema = z.object({
   simulationDurationSeconds: z.number().describe('Duração do pulso em segundos.'),

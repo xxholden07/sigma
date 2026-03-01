@@ -500,7 +500,7 @@ export function FusionReactorDashboard() {
               <SidebarGroup>
                 <SidebarGroupLabel>Ranking Global</SidebarGroupLabel>
                 <SidebarGroupContent className="p-4">
-                   <LeaderboardPanel topRuns={topRuns} isLoading={isLeaderboardLoading} />
+                   <LeaderboardPanel topRuns={topRuns ?? undefined} isLoading={isLeaderboardLoading} />
                 </SidebarGroupContent>
               </SidebarGroup>
 
