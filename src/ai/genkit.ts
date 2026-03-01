@@ -6,5 +6,5 @@ console.log('[Genkit] Inicializando com API key:', apiKey ? `${apiKey.slice(0, 1
 
 export const ai = genkit({
   plugins: [googleAI({ apiKey })],
-  model: 'googleai/gemini-2.0-flash',
+  model: 'googleai/gemini-2.5-flash',
 });

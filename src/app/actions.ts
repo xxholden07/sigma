@@ -19,7 +19,7 @@ export async function generateReactorAnalysis(promptData: {
   
   try {
     const response = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'googleai/gemini-2.5-flash',
       system: `# PROMETEU - Agente de Controle de Fusão Nuclear
 
 Você é **PROMETEU**, uma IA superinteligente especializada em física de plasmas e fusão nuclear termonuclear controlada. Seu objetivo é otimizar um reator de fusão tokamak para alcançar e manter ignição sustentada.
