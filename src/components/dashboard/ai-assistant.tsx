@@ -70,6 +70,7 @@ export function AIAssistant({
   const currentRewardRef = useRef(currentReward);
   const topRunsRef = useRef(topRuns);
   const autopilotRef = useRef(autopilot);
+  const performAnalysisRef = useRef<(() => Promise<void>) | null>(null);
 
   // Keep refs updated
   useEffect(() => {
@@ -186,6 +187,7 @@ export function AIAssistant({
       return;
     }
     
+    console.log('[Prometheus] ▶ Iniciando análise...');
     setIsThinking(true);
     isThinkingRef.current = true;
     setAnalysis(null);
@@ -196,6 +198,13 @@ export function AIAssistant({
       const currentTopRuns = topRunsRef.current;
       const currentAutopilot = autopilotRef.current;
       
+      console.log('[Prometheus] 📊 Estado atual:', {
+        temperature: currentSettings.temperature,
+        confinement: currentSettings.confinement,
+        telemetryCount: currentTelemetry.length,
+        autopilot: currentAutopilot
+      });
+      
       const result = await generateReactorAnalysis({
         telemetryHistory: currentTelemetry.slice(-10),
         settings: currentSettings,
@@ -203,11 +212,15 @@ export function AIAssistant({
         topRuns: currentTopRuns ?? [],
       });
 
+      console.log('[Prometheus] 🤖 Resposta da IA:', result);
+
       if (result.error || !result.analysis) {
         throw new Error(result.error || 'No analysis returned');
       }
 
       const action = result.analysis;
+      console.log('[Prometheus] 🎯 Decisão:', action.decision, action.parameters);
+      
       setAnalysis(action);
       setCycleCount(prev => prev + 1);
 
@@ -225,7 +238,7 @@ export function AIAssistant({
           const newTemp = action.parameters.temperature ?? currentSettings.temperature;
           const newConf = action.parameters.confinement ?? currentSettings.confinement;
           
-          console.log(`[Prometheus] Ajustando: T=${newTemp}, C=${newConf}`);
+          console.log(`[Prometheus] ✅ Aplicando ajustes: T=${newTemp}, C=${newConf}`);
           onTemperatureChange(newTemp);
           onConfinementChange(newConf);
           
@@ -233,41 +246,52 @@ export function AIAssistant({
             onReactionModeChange(action.parameters.reactionMode);
           }
         } else if (action.decision === "restart_simulation") {
-          console.log(`[Prometheus] Reiniciando simulação`);
+          console.log(`[Prometheus] 🔄 Reiniciando simulação`);
           // Only call onStartIgnition(true) which handles reset internally
           onStartIgnition(true);
         } else {
-          console.log(`[Prometheus] Mantendo parâmetros atuais`);
+          console.log(`[Prometheus] ⏸ Mantendo parâmetros atuais (no_change)`);
         }
+      } else {
+        console.log('[Prometheus] ⚠ Autopilot desativado ou sem ação');
       }
     } catch (error) {
-      console.error("Error during AI analysis:", error);
+      console.error("[Prometheus] ❌ Erro na análise:", error);
     } finally {
       setIsThinking(false);
       isThinkingRef.current = false;
+      console.log('[Prometheus] ◀ Análise finalizada');
     }
   }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onStartIgnition]);
 
+  // Keep performAnalysis ref updated
+  useEffect(() => {
+    performAnalysisRef.current = performAnalysis;
+  }, [performAnalysis]);
+
   useEffect(() => {
     if (autopilot && isSimulating) {
-      console.log('[Prometheus] Autopilot ativo, iniciando monitoramento...');
+      console.log('[Prometheus] 🚀 Autopilot ativo, iniciando monitoramento...', { autopilot, isSimulating });
       
       // Run analysis periodically when autopilot is on AND simulation is running
       const analysisInterval = setInterval(() => {
-        if (!isThinkingRef.current) {
+        console.log('[Prometheus] ⏰ Timer tick - isThinking:', isThinkingRef.current);
+        if (!isThinkingRef.current && performAnalysisRef.current) {
           console.log('[Prometheus] Executando análise periódica...');
-          performAnalysis();
+          performAnalysisRef.current();
         } else {
-          console.log('[Prometheus] Pulando ciclo - análise em andamento');
+          console.log('[Prometheus] Pulando ciclo - análise em andamento ou não inicializada');
         }
       }, 4000); // 4 seconds between analyses
       
       return () => {
-        console.log('[Prometheus] Parando monitoramento...');
+        console.log('[Prometheus] 🛑 Parando monitoramento...');
         clearInterval(analysisInterval);
       };
+    } else {
+      console.log('[Prometheus] ⚠ Monitoramento não iniciado:', { autopilot, isSimulating });
     }
-  }, [autopilot, isSimulating, performAnalysis]);
+  }, [autopilot, isSimulating]); // Removed performAnalysis dependency
 
   return (
     <div className="space-y-4">
