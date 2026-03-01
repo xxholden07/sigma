@@ -32,12 +32,6 @@ export default function Home() {
 
   return (
     <main>
-        <div className="absolute top-0 left-0 w-full z-50 p-4 flex flex-col items-center text-center pointer-events-none">
-            <h1 className="font-headline text-2xl font-bold tracking-tight text-primary">Bem-vindo, Operador de Reator.</h1>
-            <p className="text-sm text-muted-foreground max-w-2xl">
-                Sua missão: controlar nosso reator de fusão Tokamak para gerar energia limpa. Cada tentativa, sucesso ou falha, alimenta o dataset de treinamento do nosso agente de IA, Prometeu. A humanidade conta com você.
-            </p>
-        </div>
       <FusionReactorDashboard />
     </main>
   );
