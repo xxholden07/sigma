@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TelemetrySnapshot, SimulationSettings, SimulationRun } from '@/lib/simulation-types';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -63,6 +63,39 @@ export function AIAssistant({
   const [cycleCount, setCycleCount] = useState(0);
   const [wasAutopilotEnabled, setWasAutopilotEnabled] = useState(false);
 
+  // Refs to avoid stale closures in setInterval
+  const isThinkingRef = useRef(false);
+  const settingsRef = useRef(settings);
+  const telemetryHistoryRef = useRef(telemetryHistory);
+  const currentRewardRef = useRef(currentReward);
+  const topRunsRef = useRef(topRuns);
+  const autopilotRef = useRef(autopilot);
+
+  // Keep refs updated
+  useEffect(() => {
+    isThinkingRef.current = isThinking;
+  }, [isThinking]);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    telemetryHistoryRef.current = telemetryHistory;
+  }, [telemetryHistory]);
+
+  useEffect(() => {
+    currentRewardRef.current = currentReward;
+  }, [currentReward]);
+
+  useEffect(() => {
+    topRunsRef.current = topRuns;
+  }, [topRuns]);
+
+  useEffect(() => {
+    autopilotRef.current = autopilot;
+  }, [autopilot]);
+
   // React to external autopilot state changes
   useEffect(() => {
     if (autopilot && !wasAutopilotEnabled) {
@@ -92,12 +125,13 @@ export function AIAssistant({
     const runFirstAnalysis = async () => {
       console.log('[Prometheus] Executando primeira análise...');
       setIsThinking(true);
+      isThinkingRef.current = true;
       try {
         const result = await generateReactorAnalysis({
-          telemetryHistory: telemetryHistory.slice(-10),
-          settings,
-          currentReward,
-          topRuns: topRuns ?? [],
+          telemetryHistory: telemetryHistoryRef.current.slice(-10),
+          settings: settingsRef.current,
+          currentReward: currentRewardRef.current,
+          topRuns: topRunsRef.current ?? [],
         });
         
         if (result.analysis) {
@@ -121,6 +155,7 @@ export function AIAssistant({
         console.error('[Prometheus] Erro na primeira análise:', err);
       } finally {
         setIsThinking(false);
+        isThinkingRef.current = false;
       }
     };
     
@@ -146,14 +181,26 @@ export function AIAssistant({
   };
 
   const performAnalysis = useCallback(async () => {
+    if (isThinkingRef.current) {
+      console.log('[Prometheus] Análise já em andamento, ignorando...');
+      return;
+    }
+    
     setIsThinking(true);
+    isThinkingRef.current = true;
     setAnalysis(null);
     try {
+      const currentSettings = settingsRef.current;
+      const currentTelemetry = telemetryHistoryRef.current;
+      const currentRewardValue = currentRewardRef.current;
+      const currentTopRuns = topRunsRef.current;
+      const currentAutopilot = autopilotRef.current;
+      
       const result = await generateReactorAnalysis({
-        telemetryHistory: telemetryHistory.slice(-10),
-        settings,
-        currentReward,
-        topRuns: topRuns ?? [],
+        telemetryHistory: currentTelemetry.slice(-10),
+        settings: currentSettings,
+        currentReward: currentRewardValue,
+        topRuns: currentTopRuns ?? [],
       });
 
       if (result.error || !result.analysis) {
@@ -168,21 +215,21 @@ export function AIAssistant({
       const logEntry: AILogEntry = {
         timestamp: new Date(),
         action,
-        applied: autopilot,
+        applied: currentAutopilot,
       };
       setActionLog(prev => [logEntry, ...prev].slice(0, 20)); // Keep last 20 entries
 
-      if (autopilot && action) {
+      if (currentAutopilot && action) {
         // Aplicar ação imediatamente para o piloto automático
         if (action.decision === "adjust_parameters" && action.parameters) {
-          const newTemp = action.parameters.temperature ?? settings.temperature;
-          const newConf = action.parameters.confinement ?? settings.confinement;
+          const newTemp = action.parameters.temperature ?? currentSettings.temperature;
+          const newConf = action.parameters.confinement ?? currentSettings.confinement;
           
           console.log(`[Prometheus] Ajustando: T=${newTemp}, C=${newConf}`);
           onTemperatureChange(newTemp);
           onConfinementChange(newConf);
           
-          if (action.parameters.reactionMode && settings.reactionMode !== action.parameters.reactionMode) {
+          if (action.parameters.reactionMode && currentSettings.reactionMode !== action.parameters.reactionMode) {
             onReactionModeChange(action.parameters.reactionMode);
           }
         } else if (action.decision === "restart_simulation") {
@@ -197,18 +244,21 @@ export function AIAssistant({
       console.error("Error during AI analysis:", error);
     } finally {
       setIsThinking(false);
+      isThinkingRef.current = false;
     }
-  }, [telemetryHistory, settings, currentReward, topRuns, autopilot, onTemperatureChange, onConfinementChange, onReactionModeChange, onReset, onStartIgnition]);
+  }, [onTemperatureChange, onConfinementChange, onReactionModeChange, onStartIgnition]);
 
   useEffect(() => {
     if (autopilot && isSimulating) {
       console.log('[Prometheus] Autopilot ativo, iniciando monitoramento...');
       
       // Run analysis periodically when autopilot is on AND simulation is running
-      const analysisInterval = setInterval(async () => {
-        if (!isThinking) {
+      const analysisInterval = setInterval(() => {
+        if (!isThinkingRef.current) {
           console.log('[Prometheus] Executando análise periódica...');
-          await performAnalysis();
+          performAnalysis();
+        } else {
+          console.log('[Prometheus] Pulando ciclo - análise em andamento');
         }
       }, 4000); // 4 seconds between analyses
       
@@ -217,7 +267,7 @@ export function AIAssistant({
         clearInterval(analysisInterval);
       };
     }
-  }, [autopilot, isSimulating, performAnalysis, isThinking]);
+  }, [autopilot, isSimulating, performAnalysis]);
 
   return (
     <div className="space-y-4">
