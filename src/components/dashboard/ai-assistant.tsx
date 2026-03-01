@@ -105,11 +105,19 @@ export function AIAssistant({
             <Switch id="autopilot-switch" checked={autopilot} onCheckedChange={handleToggleAutopilot} />
         </div>
 
-        {autopilot && <div className="text-xs text-center text-muted-foreground italic">O agente analisará a telemetria a cada 10s.</div>}
-
-        <Button onClick={performAnalysis} disabled={isThinking || telemetryHistory.length === 0} className="w-full gap-2">
-            {isThinking ? (<><Sparkles className="h-4 w-4 animate-spin" />Analisando...</>) : (<><Sparkles className="h-4 w-4" />Forçar Análise</>)}
-        </Button>
+        {autopilot ? (
+            <div className="text-xs text-center text-muted-foreground italic p-2 rounded-md bg-primary/10 border border-primary/20">
+                {isThinking ? (
+                    <span className="flex items-center justify-center gap-2"><Sparkles className="h-3 w-3 animate-spin" />Analisando telemetria...</span>
+                ) : (
+                    "IA ativa. Analisando a cada 10s."
+                )}
+            </div>
+        ) : (
+            <Button onClick={performAnalysis} disabled={isThinking || telemetryHistory.length === 0} className="w-full gap-2">
+                {isThinking ? (<><Sparkles className="h-4 w-4 animate-spin" />Analisando...</>) : (<><Sparkles className="h-4 w-4" />Solicitar Análise</>)}
+            </Button>
+        )}
 
         {analysis && (
             <div className="space-y-3 rounded-lg border border-primary/20 bg-slate-900/50 p-3 text-xs animate-in fade-in">

@@ -3,20 +3,19 @@
 
 import { useEffect } from 'react';
 import { FusionReactorDashboard } from "@/components/dashboard/fusion-reactor-dashboard";
-import { useFirebase, useUser, initiateAnonymousSignIn } from "@/firebase";
+import { useUser } from "@/firebase";
 import { useRouter } from 'next/navigation';
 import { LoaderCircle } from 'lucide-react';
 
 export default function Home() {
-  const { auth } = useFirebase();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      initiateAnonymousSignIn(auth);
+      router.push('/login');
     }
-  }, [isUserLoading, user, auth]);
+  }, [isUserLoading, user, router]);
 
   if (isUserLoading) {
     return (
