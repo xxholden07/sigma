@@ -28,6 +28,9 @@ interface AIAssistantProps {
   onStartIgnition: (forceReset?: boolean) => void;
   isSimulating: boolean;
   topRuns: SimulationRun[] | null;
+  // External autopilot control (optional)
+  autopilotEnabled?: boolean;
+  onAutopilotChange?: (enabled: boolean) => void;
 }
 
 export function AIAssistant({
@@ -41,63 +44,87 @@ export function AIAssistant({
   onStartIgnition,
   isSimulating,
   topRuns,
+  autopilotEnabled,
+  onAutopilotChange,
 }: AIAssistantProps) {
-  const [autopilot, setAutopilot] = useState(false);
+  // Use external state if provided, otherwise use internal state
+  const [internalAutopilot, setInternalAutopilot] = useState(false);
+  const autopilot = autopilotEnabled !== undefined ? autopilotEnabled : internalAutopilot;
+  const setAutopilot = (value: boolean) => {
+    if (onAutopilotChange) {
+      onAutopilotChange(value);
+    } else {
+      setInternalAutopilot(value);
+    }
+  };
   const [isThinking, setIsThinking] = useState(false);
   const [analysis, setAnalysis] = useState<ReactorAgentAction | null>(null);
   const [actionLog, setActionLog] = useState<AILogEntry[]>([]);
   const [cycleCount, setCycleCount] = useState(0);
+  const [wasAutopilotEnabled, setWasAutopilotEnabled] = useState(false);
+
+  // React to external autopilot state changes
+  useEffect(() => {
+    if (autopilot && !wasAutopilotEnabled) {
+      // Autopilot was just enabled externally
+      handleToggleAutopilot(true);
+    }
+    setWasAutopilotEnabled(autopilot);
+  }, [autopilot]);
 
   const handleToggleAutopilot = (checked: boolean) => {
-    setAutopilot(checked);
-    if (checked) {
-      setActionLog([]); // Clear log when starting
-      setCycleCount(0);
-      
-      // Start simulation immediately if not running
-      if (!isSimulating) {
-        console.log('[Prometheus] Iniciando simulação...');
-        onStartIgnition(true);
-      }
-      
-      // Run first analysis after simulation has time to start
-      const runFirstAnalysis = async () => {
-        console.log('[Prometheus] Executando primeira análise...');
-        setIsThinking(true);
-        try {
-          const result = await generateReactorAnalysis({
-            telemetryHistory: telemetryHistory.slice(-10),
-            settings,
-            currentReward,
-            topRuns: topRuns ?? [],
-          });
-          
-          if (result.analysis) {
-            setAnalysis(result.analysis);
-            setCycleCount(1);
-            
-            // Apply first action
-            const action = result.analysis;
-            if (action.decision === "adjust_parameters" && action.parameters) {
-              console.log(`[Prometheus] Primeiro ajuste: T=${action.parameters.temperature}, C=${action.parameters.confinement}`);
-              onTemperatureChange(action.parameters.temperature);
-              onConfinementChange(action.parameters.confinement);
-            } else if (action.decision === "restart_simulation") {
-              console.log('[Prometheus] Reiniciando...');
-              onStartIgnition(true);
-            }
-            
-            setActionLog([{ timestamp: new Date(), action, applied: true }]);
-          }
-        } catch (err) {
-          console.error('[Prometheus] Erro na primeira análise:', err);
-        } finally {
-          setIsThinking(false);
-        }
-      };
-      
-      setTimeout(runFirstAnalysis, 1000);
+    if (!checked) {
+      setAutopilot(false);
+      return;
     }
+    
+    setAutopilot(true);
+    setActionLog([]); // Clear log when starting
+    setCycleCount(0);
+    
+    // Start simulation immediately if not running
+    if (!isSimulating) {
+      console.log('[Prometheus] Iniciando simulação...');
+      onStartIgnition(true);
+    }
+    
+    // Run first analysis after simulation has time to start
+    const runFirstAnalysis = async () => {
+      console.log('[Prometheus] Executando primeira análise...');
+      setIsThinking(true);
+      try {
+        const result = await generateReactorAnalysis({
+          telemetryHistory: telemetryHistory.slice(-10),
+          settings,
+          currentReward,
+          topRuns: topRuns ?? [],
+        });
+        
+        if (result.analysis) {
+          setAnalysis(result.analysis);
+          setCycleCount(1);
+          
+          // Apply first action
+          const action = result.analysis;
+          if (action.decision === "adjust_parameters" && action.parameters) {
+            console.log(`[Prometheus] Primeiro ajuste: T=${action.parameters.temperature}, C=${action.parameters.confinement}`);
+            onTemperatureChange(action.parameters.temperature);
+            onConfinementChange(action.parameters.confinement);
+          } else if (action.decision === "restart_simulation") {
+            console.log('[Prometheus] Reiniciando...');
+            onStartIgnition(true);
+          }
+          
+          setActionLog([{ timestamp: new Date(), action, applied: true }]);
+        }
+      } catch (err) {
+        console.error('[Prometheus] Erro na primeira análise:', err);
+      } finally {
+        setIsThinking(false);
+      }
+    };
+    
+    setTimeout(runFirstAnalysis, 1000);
   };
 
   const getDecisionIcon = (decision: string) => {

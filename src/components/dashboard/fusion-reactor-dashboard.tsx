@@ -27,7 +27,8 @@ import { collection, collectionGroup, query, orderBy, limit } from "firebase/fir
 import { SimulationHistoryPanel } from "./simulation-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History, RotateCcw, Orbit, Atom } from "lucide-react";
+import { Microscope, Zap, ShieldAlert, Play, AlertTriangle, Database, History, RotateCcw, Orbit, Atom, Thermometer, BrainCircuit } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import type { PhysicsMode } from "@/lib/simulation-types";
 
@@ -261,6 +262,7 @@ export function FusionReactorDashboard() {
   const [peakFusionRate, setPeakFusionRate] = useState(0);
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetrySnapshot[]>([]);
   const [confinementPenalty, setConfinementPenalty] = useState(0);
+  const [autopilotActive, setAutopilotActive] = useState(false);
 
   const lastHistorySnapshotTime = useRef(performance.now());
 
@@ -773,207 +775,362 @@ export function FusionReactorDashboard() {
   }, [isSimulating, telemetry, settings.temperature]);
 
   return (
-    <SidebarProvider defaultOpen>
-      <div className="flex h-screen w-full flex-col bg-background">
-        <header className="flex h-16 items-center gap-4 border-b border-primary/10 px-4 sm:h-18 sm:px-6 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 backdrop-blur-md sticky top-0 z-50 shadow-lg shadow-primary/5">
-          <div className="relative">
-            <FusionIcon className="h-8 w-8 text-primary" />
-            {isSimulating && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse border-2 border-slate-950" />}
-          </div>
-          <div className="flex flex-col">
-            <h1 className="font-headline text-lg font-bold tracking-tight sm:text-xl bg-gradient-to-r from-primary via-cyan-400 to-primary bg-clip-text text-transparent leading-none">FusionFlow Reactor</h1>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-[0.25em] font-mono">Sistema de Controle TORAX v2.0</p>
+    <div className="h-screen w-full bg-black overflow-hidden relative">
+      {/* ============================================ */}
+      {/* COCKPIT VIEW - STARSHIP BRIDGE */}
+      {/* ============================================ */}
+      
+      {/* Space Background with Stars */}
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-black to-slate-950">
+        <div className="absolute inset-0 opacity-50" style={{
+          backgroundImage: `radial-gradient(1px 1px at 20px 30px, white, transparent),
+                           radial-gradient(1px 1px at 40px 70px, rgba(255,255,255,0.8), transparent),
+                           radial-gradient(1px 1px at 50px 160px, rgba(255,255,255,0.6), transparent),
+                           radial-gradient(1px 1px at 90px 40px, white, transparent),
+                           radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,0.7), transparent),
+                           radial-gradient(1.5px 1.5px at 160px 120px, cyan, transparent)`,
+          backgroundSize: '200px 200px'
+        }} />
+      </div>
+
+      {/* Main Viewport - Reactor View */}
+      <div className="absolute inset-x-0 top-0 bottom-48 flex items-center justify-center p-4">
+        <div className="relative w-full h-full max-w-[1400px]">
+          {/* Cockpit Frame - Top */}
+          <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-slate-800 to-transparent z-10">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
           </div>
           
-          <div className="ml-auto flex items-center gap-2 sm:gap-4">
-              {/* Score Display */}
-              <div className="hidden lg:flex flex-col items-end px-4 py-1.5 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30">
-                  <span className="text-[8px] font-bold text-primary/70 uppercase tracking-wider">Pontuação</span>
-                  <span className="text-lg font-mono font-black text-primary tabular-nums">{Math.round(telemetry.score).toLocaleString()}</span>
-              </div>
-
-              {/* Q-Factor Display */}
-              <div className={`hidden md:flex flex-col items-center px-3 py-1.5 rounded-lg border transition-all duration-500 ${
-                telemetry.qFactor >= 5.0 
-                  ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/10 border-amber-500/50 shadow-[0_0_20px_-5px_rgba(245,158,11,0.6)]' 
-                  : telemetry.qFactor >= 1.0 
-                    ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/5 border-green-500/40' 
-                    : 'bg-slate-800/50 border-white/10'
-              }`}>
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Fator Q</span>
-                  <div className="flex items-center gap-1">
-                    <Zap className={`h-3.5 w-3.5 ${telemetry.qFactor >= 5.0 ? "text-amber-400 animate-pulse" : telemetry.qFactor >= 1.0 ? "text-green-400" : "text-primary/50"}`} />
-                    <span className={`text-lg font-mono font-black tabular-nums ${telemetry.qFactor >= 5.0 ? 'text-amber-400' : telemetry.qFactor >= 1.0 ? 'text-green-400' : 'text-white'}`}>{telemetry.qFactor.toFixed(2)}</span>
-                  </div>
-              </div>
-
-              {/* Dataset Counter */}
-              <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/40 border border-white/5">
-                <Database className="h-3.5 w-3.5 text-cyan-400" />
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase">Dataset</span>
-                  <span className="text-sm font-mono font-bold text-cyan-400">{allRuns?.length || 0}</span>
-                </div>
-              </div>
-
-              {/* Status Badge */}
-              <Badge 
-                variant="outline" 
-                className={`h-9 px-3 gap-2 transition-all duration-300 ${
-                  isSimulating 
-                    ? 'bg-green-500/10 border-green-500/50 text-green-400' 
-                    : 'bg-slate-800/50 border-white/10 text-muted-foreground'
-                }`}
-              >
-                <span className={`h-2 w-2 rounded-full ${isSimulating ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`} />
-                <span className="text-xs font-bold uppercase tracking-wider">{isSimulating ? 'ATIVO' : 'IDLE'}</span>
-              </Badge>
-              <SidebarTrigger />
+          {/* Cockpit Frame - Left Strut */}
+          <div className="absolute top-0 left-0 bottom-0 w-16 z-10">
+            <svg className="h-full w-full" viewBox="0 0 60 400" preserveAspectRatio="none">
+              <path d="M0,0 L60,30 L60,370 L0,400 Z" fill="url(#cockpitGradientLeft)" />
+              <path d="M55,35 L55,365" stroke="rgba(0,200,255,0.3)" strokeWidth="1" />
+            </svg>
           </div>
-        </header>
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar>
-            <SidebarHeader className="border-b border-primary/10 p-4 bg-gradient-to-b from-slate-900/40 to-transparent">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/30 to-cyan-500/10 flex items-center justify-center border border-primary/20">
-                  <Microscope className="h-4 w-4 text-primary" />
+          
+          {/* Cockpit Frame - Right Strut */}
+          <div className="absolute top-0 right-0 bottom-0 w-16 z-10">
+            <svg className="h-full w-full" viewBox="0 0 60 400" preserveAspectRatio="none">
+              <path d="M60,0 L0,30 L0,370 L60,400 Z" fill="url(#cockpitGradientRight)" />
+              <path d="M5,35 L5,365" stroke="rgba(0,200,255,0.3)" strokeWidth="1" />
+            </svg>
+          </div>
+          
+          {/* SVG Gradients */}
+          <svg className="absolute w-0 h-0">
+            <defs>
+              <linearGradient id="cockpitGradientLeft" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#1e293b" />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+              <linearGradient id="cockpitGradientRight" x1="100%" y1="0%" x2="0%" y2="0%">
+                <stop offset="0%" stopColor="#1e293b" />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* Main Viewport Screen */}
+          <div className="absolute inset-8 rounded-lg overflow-hidden border border-cyan-500/30 shadow-[0_0_60px_-15px_rgba(0,200,255,0.5),inset_0_0_100px_-50px_rgba(0,200,255,0.2)]">
+            {/* Scanlines Effect */}
+            <div className="absolute inset-0 pointer-events-none z-20 opacity-10" style={{
+              backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px)'
+            }} />
+            
+            {/* HUD Overlay - Top */}
+            <div className="absolute top-0 left-0 right-0 h-16 z-10 flex items-center justify-between px-6 bg-gradient-to-b from-black/60 to-transparent">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className={`h-3 w-3 rounded-full ${isSimulating ? 'bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-slate-600'}`} />
+                  <span className="text-xs font-mono uppercase tracking-wider text-cyan-400">{isSimulating ? 'REATOR ONLINE' : 'STANDBY'}</span>
                 </div>
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-white">Laboratório</h2>
-                  <p className="text-[9px] text-primary/70 uppercase tracking-[0.2em]">TORAX Control</p>
+                <div className="h-4 w-px bg-cyan-500/30" />
+                <span className="text-xs font-mono text-slate-400">TORAX-VII</span>
+              </div>
+              
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className="text-[10px] font-mono text-slate-500 uppercase">Missão</div>
+                  <div className="text-sm font-mono text-cyan-400">{Math.floor(telemetry.simulationDuration)}s</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] font-mono text-slate-500 uppercase">Pontos</div>
+                  <div className="text-sm font-mono text-amber-400 font-bold">{Math.round(telemetry.score).toLocaleString()}</div>
                 </div>
               </div>
-            </SidebarHeader>
-            <SidebarContent className="p-0 overflow-auto">
-              <SidebarGroup>
-                <SidebarGroupLabel>Controle de Variáveis</SidebarGroupLabel>
-                <SidebarGroupContent className="p-4">
-                  <ControlPanel 
-                    settings={settings}
-                    onTemperatureChange={handleTemperatureChange}
-                    onConfinementChange={handleConfinementChange}
-                    onEnergyThresholdChange={handleEnergyThresholdChange}
-                    onInitialParticleCountChange={handleInitialParticleCountChange}
-                    onReactionModeChange={handleReactionModeChange}
-                    onPhysicsModeChange={handlePhysicsModeChange}
-                    onReset={() => resetSimulation()}
-                    isSimulating={isSimulating}
-                    onStartIgnition={handleStartIgnition}
-                  />
-                </SidebarGroupContent>
-              </SidebarGroup>
-              
-              <SidebarGroup>
-                <SidebarGroupLabel>Agente Prometeu (RL)</SidebarGroupLabel>
-                <SidebarGroupContent className="p-4">
-                  <AIAssistant
-                    telemetryHistory={telemetryHistory}
-                    settings={settings}
-                    currentReward={telemetry.aiReward}
-                    onTemperatureChange={handleTemperatureChange}
-                    onConfinementChange={handleConfinementChange}
-                    onReactionModeChange={handleReactionModeChange}
-                    onReset={() => resetSimulation()}
-                    onStartIgnition={handleStartIgnition}
-                    isSimulating={isSimulating}
-                    topRuns={topRuns}
-                  />
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              <SidebarGroup>
-                <SidebarGroupLabel>Telemetria em Tempo Real</SidebarGroupLabel>
-                <SidebarGroupContent className="p-4">
-                  <TelemetryPanel telemetry={telemetry} telemetryHistory={telemetryHistory} />
-                </SidebarGroupContent>
-              </SidebarGroup>
-              
-              <SidebarGroup>
-                <SidebarGroupLabel>Ranking Global</SidebarGroupLabel>
-                <SidebarGroupContent className="p-4">
-                   <LeaderboardPanel topRuns={topRuns ?? undefined} isLoading={isLeaderboardLoading} />
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              <SidebarGroup>
-                <SidebarGroupLabel className="flex items-center gap-2">
-                   <History className="h-3 w-3" />
-                   Meu Histórico
-                </SidebarGroupLabel>
-                <SidebarGroupContent className="p-4">
-                  <SimulationHistoryPanel runs={allRuns} isLoading={isUserLoading} />
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </SidebarContent>
-          </Sidebar>
-          <SidebarInset className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-            <div className="relative flex h-full w-full items-center justify-center p-4 md:p-8">
-              <div className="relative aspect-video w-full max-w-full lg:max-w-[1100px] overflow-hidden rounded-3xl border-2 border-primary/40 bg-black shadow-[0_0_100px_-25px_rgba(59,130,246,0.7),inset_0_0_60px_-30px_rgba(59,130,246,0.3)] ring-1 ring-white/20">
-                {/* Corner Accents */}
-                <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-primary/60 rounded-tl-3xl" />
-                <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-primary/60 rounded-tr-3xl" />
-                <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-primary/60 rounded-bl-3xl" />
-                <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-primary/60 rounded-br-3xl" />
-                {!isSimulating && (
-                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gradient-to-b from-slate-950/90 via-slate-900/95 to-slate-950/90 backdrop-blur-lg gap-6">
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        {telemetry.wallIntegrity < 100 ? (
-                            <>
-                                <div className="relative">
-                                  <AlertTriangle className="h-20 w-20 text-red-500" />
-                                  <div className="absolute inset-0 h-20 w-20 bg-red-500/20 rounded-full blur-2xl animate-pulse" />
-                                </div>
-                                <h2 className="text-4xl font-headline font-black text-red-400 uppercase tracking-tight">Falha Crítica</h2>
-                                <p className="text-sm text-muted-foreground max-w-md">Integridade da parede comprometida. Analisando dados da simulação...</p>
-                            </>
-                        ) : (
-                            <>
-                               <div className="relative">
-                                 <div className="absolute inset-0 bg-primary/30 rounded-full blur-3xl animate-pulse" />
-                                 <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/20 to-cyan-500/10 border-2 border-primary/30 flex items-center justify-center">
-                                   <Play className="h-10 w-10 text-primary ml-1" />
-                                 </div>
-                               </div>
-                               <h2 className="text-4xl font-headline font-black bg-gradient-to-r from-white to-primary bg-clip-text text-transparent uppercase tracking-tight">Pronto</h2>
-                               <p className="text-sm text-muted-foreground max-w-md">Sistema aguardando comando de ignição manual ou ativação do piloto automático.</p>
-                            </>
-                        )}
-                    </div>
-                    <Button 
-                      size="lg" 
-                      onClick={telemetry.wallIntegrity < 100 ? () => resetSimulation() : () => handleStartIgnition()} 
-                      className={`h-14 px-12 text-lg font-bold gap-3 transition-all duration-300 hover:scale-105 ${
-                        telemetry.wallIntegrity < 100 
-                          ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_40px_-10px_rgba(239,68,68,0.8)]' 
-                          : 'bg-gradient-to-r from-primary to-cyan-500 hover:from-primary/90 hover:to-cyan-500/90 shadow-[0_0_50px_-10px_rgba(59,130,246,0.9)]'
-                      }`}
-                    >
-                      {telemetry.wallIntegrity < 100 ? <RotateCcw className="h-6 w-6" /> : <Play className="h-6 w-6 fill-current" />}
-                      {telemetry.wallIntegrity < 100 ? "REINICIAR SISTEMA" : "INICIAR IGNIÇÃO"}
-                    </Button>
+            </div>
+            
+            {/* HUD Overlay - Target Reticle */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <div className="relative w-32 h-32">
+                <div className="absolute inset-0 border border-cyan-500/20 rounded-full" />
+                <div className="absolute inset-4 border border-cyan-500/30 rounded-full" />
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-cyan-500/20" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-cyan-500/20" />
+                {/* Corner brackets */}
+                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-500/50" />
+                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-500/50" />
+                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-500/50" />
+                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-500/50" />
+              </div>
+            </div>
+            
+            {/* Reactor View (Canvas) */}
+            {!isSimulating && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm gap-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" />
+                  <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/10 border border-cyan-500/40 flex items-center justify-center">
+                    <Play className="h-8 w-8 text-cyan-400 ml-1" />
                   </div>
-                )}
-                
-                {confinementPenalty > 0 && (
-                    <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-red-500/20 border border-red-500/50 p-2 rounded animate-pulse">
-                        <AlertTriangle className="h-4 w-4 text-red-500" />
-                        <span className="text-[10px] font-bold text-red-500 uppercase">Perda de Eficiência Magnética</span>
-                    </div>
-                )}
+                </div>
+                <h2 className="text-2xl font-mono font-bold text-cyan-400 uppercase tracking-widest">Sistemas Prontos</h2>
+                <p className="text-sm text-slate-400 font-mono">Aguardando comando de ignição</p>
+                <Button 
+                  onClick={() => handleStartIgnition()}
+                  className="mt-4 h-12 px-8 font-mono font-bold uppercase tracking-wider bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30 hover:border-cyan-400 shadow-[0_0_30px_-10px_rgba(0,200,255,0.5)]"
+                >
+                  <Play className="h-5 w-5 mr-2 fill-current" />
+                  Iniciar Ignição
+                </Button>
+              </div>
+            )}
+            
+            <SimulationCanvas 
+              getParticles={() => simulationStateRef.current.particles}
+              getFlashes={() => simulationStateRef.current.flashes}
+              settings={settings}
+              qFactor={telemetry.qFactor}
+              magneticSafetyFactorQ={telemetry.magneticSafetyFactorQ}
+              fractalDimensionD={telemetry.fractalDimensionD}
+            />
+          </div>
+        </div>
+      </div>
 
-                <SimulationCanvas 
-                    getParticles={() => simulationStateRef.current.particles}
-                    getFlashes={() => simulationStateRef.current.flashes}
-                    settings={settings}
-                    qFactor={telemetry.qFactor}
-                    magneticSafetyFactorQ={telemetry.magneticSafetyFactorQ}
-                    fractalDimensionD={telemetry.fractalDimensionD}
+      {/* ============================================ */}
+      {/* COCKPIT INSTRUMENT PANEL - Bottom */}
+      {/* ============================================ */}
+      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-slate-900 via-slate-900/95 to-slate-900/80 border-t border-cyan-500/30">
+        {/* Panel Edge Glow */}
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
+        
+        <div className="h-full flex items-stretch gap-1 p-2">
+          
+          {/* LEFT PANEL - Primary Gauges */}
+          <div className="flex-1 bg-slate-950/80 rounded-lg border border-cyan-500/20 p-3 flex flex-col">
+            <div className="text-[9px] font-mono text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Thermometer className="h-3 w-3" />
+              Controle Primário
+            </div>
+            
+            <div className="flex-1 grid grid-cols-2 gap-3">
+              {/* Temperature Gauge */}
+              <div className="bg-black/40 rounded-lg p-2 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[8px] font-mono text-orange-400 uppercase">Plasma Temp</span>
+                  <span className="text-sm font-mono font-bold text-orange-400">{settings.temperature}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-orange-600 via-orange-400 to-yellow-400 transition-all"
+                    style={{ width: `${(settings.temperature / 300) * 100}%` }}
+                  />
+                </div>
+                <Slider
+                  min={10}
+                  max={300}
+                  step={5}
+                  value={[settings.temperature]}
+                  onValueChange={(v) => handleTemperatureChange(v[0])}
+                  className="mt-2"
+                />
+              </div>
+              
+              {/* Confinement Gauge */}
+              <div className="bg-black/40 rounded-lg p-2 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[8px] font-mono text-blue-400 uppercase">Campo B</span>
+                  <span className="text-sm font-mono font-bold text-blue-400">{settings.confinement.toFixed(2)}T</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-600 via-blue-400 to-cyan-400 transition-all"
+                    style={{ width: `${(settings.confinement / 1.5) * 100}%` }}
+                  />
+                </div>
+                <Slider
+                  min={0.1}
+                  max={1.5}
+                  step={0.05}
+                  value={[settings.confinement]}
+                  onValueChange={(v) => handleConfinementChange(v[0])}
+                  className="mt-2"
                 />
               </div>
             </div>
-          </SidebarInset>
+          </div>
+
+          {/* CENTER PANEL - Main Displays */}
+          <div className="flex-[1.5] bg-slate-950/80 rounded-lg border border-cyan-500/20 p-3 flex flex-col">
+            <div className="text-[9px] font-mono text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Zap className="h-3 w-3" />
+              Diagnóstico do Reator
+            </div>
+            
+            <div className="flex-1 grid grid-cols-4 gap-2">
+              {/* Q-Factor Display */}
+              <div className={`bg-black/60 rounded-lg p-2 border flex flex-col items-center justify-center ${
+                telemetry.qFactor >= 5 ? 'border-amber-500/50 shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)]' :
+                telemetry.qFactor >= 1 ? 'border-green-500/50' : 'border-slate-700/50'
+              }`}>
+                <span className="text-[8px] font-mono text-slate-500 uppercase">Fator Q</span>
+                <span className={`text-2xl font-mono font-black ${
+                  telemetry.qFactor >= 5 ? 'text-amber-400' :
+                  telemetry.qFactor >= 1 ? 'text-green-400' : 'text-slate-400'
+                }`}>{telemetry.qFactor.toFixed(2)}</span>
+                {telemetry.qFactor >= 5 && <span className="text-[8px] font-mono text-amber-400 animate-pulse">IGNIÇÃO!</span>}
+              </div>
+              
+              {/* Fusion Rate */}
+              <div className="bg-black/60 rounded-lg p-2 border border-slate-700/50 flex flex-col items-center justify-center">
+                <span className="text-[8px] font-mono text-slate-500 uppercase">Fusões/s</span>
+                <span className="text-2xl font-mono font-bold text-cyan-400">{telemetry.fusionRate}</span>
+              </div>
+              
+              {/* Shield Integrity */}
+              <div className={`bg-black/60 rounded-lg p-2 border flex flex-col items-center justify-center ${
+                telemetry.wallIntegrity < 50 ? 'border-red-500/50' : 'border-slate-700/50'
+              }`}>
+                <span className="text-[8px] font-mono text-slate-500 uppercase">Blindagem</span>
+                <span className={`text-2xl font-mono font-bold ${
+                  telemetry.wallIntegrity < 50 ? 'text-red-400' : 'text-green-400'
+                }`}>{telemetry.wallIntegrity.toFixed(0)}%</span>
+              </div>
+              
+              {/* Particles */}
+              <div className="bg-black/60 rounded-lg p-2 border border-slate-700/50 flex flex-col items-center justify-center">
+                <span className="text-[8px] font-mono text-slate-500 uppercase">Partículas</span>
+                <span className="text-2xl font-mono font-bold text-purple-400">{telemetry.particleCount}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT PANEL - Controls & AI */}
+          <div className="flex-1 bg-slate-950/80 rounded-lg border border-cyan-500/20 p-3 flex flex-col">
+            <div className="text-[9px] font-mono text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <BrainCircuit className="h-3 w-3" />
+              Prometeu AI
+            </div>
+            
+            <div className="flex-1 flex flex-col gap-2">
+              {/* Reaction Mode Toggle */}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => !isSimulating && handleReactionModeChange('DT')}
+                  disabled={isSimulating}
+                  className={`flex-1 h-8 rounded text-[10px] font-mono font-bold uppercase transition-all ${
+                    settings.reactionMode === 'DT' 
+                      ? 'bg-cyan-500/30 border border-cyan-500/60 text-cyan-400' 
+                      : 'bg-slate-800/50 border border-slate-700/50 text-slate-500 hover:text-slate-400'
+                  }`}
+                >
+                  D-T
+                </button>
+                <button
+                  onClick={() => !isSimulating && handleReactionModeChange('DD_DHe3')}
+                  disabled={isSimulating}
+                  className={`flex-1 h-8 rounded text-[10px] font-mono font-bold uppercase transition-all ${
+                    settings.reactionMode === 'DD_DHe3' 
+                      ? 'bg-cyan-500/30 border border-cyan-500/60 text-cyan-400' 
+                      : 'bg-slate-800/50 border border-slate-700/50 text-slate-500 hover:text-slate-400'
+                  }`}
+                >
+                  D-D/He³
+                </button>
+              </div>
+              
+              {/* Autopilot Toggle */}
+              <div className="flex-1 flex items-center justify-between bg-black/40 rounded-lg px-3 border border-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <BrainCircuit className={`h-4 w-4 ${autopilotActive ? 'text-green-400' : 'text-slate-500'}`} />
+                  <span className="text-[10px] font-mono uppercase">Auto-Piloto</span>
+                </div>
+                <div 
+                  onClick={() => setAutopilotActive(!autopilotActive)}
+                  className={`w-10 h-5 rounded-full cursor-pointer transition-all ${
+                    autopilotActive ? 'bg-green-500/30 border border-green-500' : 'bg-slate-700 border border-slate-600'
+                  }`}
+                >
+                  <div className={`h-4 w-4 rounded-full bg-white transition-all mt-0.5 ${autopilotActive ? 'ml-5' : 'ml-0.5'}`} />
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-1">
+                {isSimulating ? (
+                  <Button 
+                    onClick={() => resetSimulation()}
+                    variant="outline"
+                    className="flex-1 h-8 text-[10px] font-mono uppercase border-red-500/50 text-red-400 hover:bg-red-500/20"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Abortar
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => handleStartIgnition()}
+                    className="flex-1 h-8 text-[10px] font-mono uppercase bg-green-500/20 border border-green-500/50 text-green-400 hover:bg-green-500/30"
+                  >
+                    <Play className="h-3 w-3 mr-1 fill-current" />
+                    Ignição
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* FAR RIGHT - Mini Gauges */}
+          <div className="w-32 bg-slate-950/80 rounded-lg border border-cyan-500/20 p-2 flex flex-col gap-1">
+            <div className="text-[8px] font-mono text-cyan-500/70 uppercase tracking-widest text-center">Status</div>
+            
+            {/* Mini gauge displays */}
+            <div className="flex-1 flex flex-col justify-around">
+              <div className="text-center">
+                <div className="text-[7px] font-mono text-slate-500">LYAPUNOV λ</div>
+                <div className="text-sm font-mono font-bold text-cyan-400">{telemetry.lyapunovExponent.toFixed(3)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[7px] font-mono text-slate-500">FRACTAL D</div>
+                <div className="text-sm font-mono font-bold text-purple-400">{telemetry.fractalDimensionD.toFixed(2)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[7px] font-mono text-slate-500">MAG SAFETY q</div>
+                <div className="text-sm font-mono font-bold text-amber-400">{telemetry.magneticSafetyFactorQ.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </SidebarProvider>
+
+      {/* Hidden AI Assistant - runs in background */}
+      <div className="hidden">
+        <AIAssistant
+          telemetryHistory={telemetryHistory}
+          settings={settings}
+          currentReward={telemetry.aiReward}
+          onTemperatureChange={handleTemperatureChange}
+          onConfinementChange={handleConfinementChange}
+          onReactionModeChange={handleReactionModeChange}
+          onReset={() => resetSimulation()}
+          onStartIgnition={handleStartIgnition}
+          isSimulating={isSimulating}
+          topRuns={topRuns}
+          autopilotEnabled={autopilotActive}
+          onAutopilotChange={setAutopilotActive}
+        />
+      </div>
+    </div>
   );
 }
